@@ -1,0 +1,158 @@
+---
+title: "Loan Prediction"
+output: 
+  html_document: 
+    smart: no
+---
+
+### Project details: 
+
+Domain: Banking and Finance
+Project: Loan Prediction
+Data: loan.zip
+
+Description:
+This data corresponds to a set of financial transactions associated with individuals. You are provided with over one thousand observations (test + train) and nearly 13 features. Each observation is independent from the previous.
+
+Variable Description:
+
+Loan_ID (Unique Loan ID)                                        
+Gender (Male/ Female)                                  
+Married (Applicant married (Y/N))                                                       
+Dependents (Number of dependents)                            
+Education (Applicant Education (Graduate/ Under Graduate))                    
+Self_Employed (Self-employed (Y/N))                   
+ApplicantIncome (Applicant income)                                                        
+CoapplicantIncome (Coapplicant income)                                                    
+LoanAmount (Loan amount in thousands)                                                    
+Loan_Amount_Term (Term of loan in months)                                                        
+Credit_History (Credit history meets guidelines)                                                
+Property_Area (Urban/ Semi Urban/ Rural)                                                     
+Loan_Status (Loan approved (Y/N))                                 
+
+
+Objective:
+
+This project asks you to determine whether a loan will get approved or not. Also, try to find good insights with a financial management perspective.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+```
+
+### Loading the data
+
+```{r}
+
+loan_train <- read.csv('train_u6lujuX_CVtuZ9i.csv',na.strings = c('NA',''))
+summary(loan_train)
+glimpse(loan_train)
+
+loan_train$Loan_ID <- as.character(loan_train$Loan_ID)
+
+```
+
+Can find the missing values in:
+
+- gender (13)         
+- married (3)           
+- dependents (15)                   
+- self-employed (32)            
+- loan amount (22)            
+- loan amount term (14)           
+- credit history (50)         
+
+
+### Finding columns and rows with missing values using function
+```{r}
+miss <- function(x) {
+ cat('\nThe columns having missing values are:')
+ for(i in 1:ncol(x)) {
+  if(length(x[i][is.na(x[i])]) > 0) {
+    cat('\n',names(x[i]),':',length(x[i][is.na(x[i])]))
+  }
+ } 
+  cat('\n\nThe number of rows with missing values are:',nrow(x)-nrow(na.omit(x)))
+  cat('\nThe proportion of missing values is:',signif((nrow(x)-nrow(na.omit(x)))/nrow(x),2))
+}
+
+miss(loan_train)
+```
+
+### Use kNN imputaion to handle missing values (k is choosen as square root of obs.)
+### For numerical data, weighted average is used. The data points that are near are weighted more than far away data points.
+### For Categorical data, mode is used
+
+```{r, message=FALSE, warning=FALSE}
+library(VIM)     #for kNN
+library(laeken)  #for weightedMean
+
+loan_train1 <- kNN(loan_train,variable=c('Gender','Married','Dependents','Self_Employed','LoanAmount','Loan_Amount_Term','Credit_History'),k=23,numFun = weightedMean,weightDist=TRUE)
+
+summary(loan_train1)
+glimpse(loan_train1)
+
+
+```
+
+
+### Remove the extra columns created by kNN imputation. 
+### Validate any missing values are present
+
+
+```{r}
+loan_train1 <- loan_train1[-c(14:20)]
+miss(loan_train1)
+
+```
+
+### Data Visualization
+
+```{r}
+
+ggplot(data=loan_train1,aes(Loan_Status,LoanAmount))+geom_boxplot()+labs(title='Loan Status vs Loan Amount')
+
+ggplot(data=loan_train1,aes(Loan_Status,ApplicantIncome))+geom_boxplot()+labs(title='Loan Status vs Applicant Income')
+
+ggplot(data=loan_train1,aes(LoanAmount,ApplicantIncome,color=Loan_Status))+geom_point()+labs(title='Loan Amount vs Applicant Income - for various Loan status')
+
+ggplot(data=loan_train1,aes(LoanAmount,ApplicantIncome))+geom_point()+facet_wrap(~Loan_Status)+labs(title='Loan Amount vs Applicant Income - for various Loan status')
+
+#checking if some relation between self employment and loan status
+tab <- table(loan_status=loan_train1$Loan_Status,self_employed=loan_train1$Self_Employed)
+cat('\nThe proportions of self employment - for various loan status:\n')
+prop.table(tab,2)
+
+#checking if some relation between Credit history and loan status
+tab <- table(loan_status=loan_train1$Loan_Status,credit_history=loan_train1$Credit_History)
+cat('\nThe proportions of credit history - for various loan status:\n')
+prop.table(tab,2)
+ 
+
+#checking if some relation between Coapplicant income and loan status
+tab <- table(loan_status=loan_train1$Loan_Status,coapp_inc_0=loan_train1$CoapplicantIncome==0)
+cat('\nThe proportions for coapplicant income zero - for various loan status:\n')
+prop.table(tab,2)
+ 
+
+
+
+
+```
+
+Can infer that:
+
+- The loans that got approved are the ones that took less loan amount compared to that of rejected.
+- Applicant income doesn't seem different for approved/rejected loans
+- As applicant income increases, loan amount increases. The rejected cases are mostly the ones with more loan amount and lesser applicant income (though there are lots of outliers)
+- There seems no relation between self employment and loan status (approved cases for both self employed and non-self employed is same - 68%)
+- The approved cases for credit_history "1" customers is significantly high(79%) than credit_history "0" customers(31%)
+- The approval rate for cases where there is coaaplicant income is higher(71%) than cases where there is no coapplicant income(64%).
+
