@@ -7,14 +7,14 @@ output:
 
 ### Project details: 
 
-Domain: Banking and Finance
-Project: Loan Prediction
-Data: loan.zip
+####Domain: Banking and Finance
+####Project: Loan Prediction
+####Data: loan.zip
 
-Description:
+####Description:
 This data corresponds to a set of financial transactions associated with individuals. You are provided with over one thousand observations (test + train) and nearly 13 features. Each observation is independent from the previous.
 
-Variable Description:
+####Variable Description:
 
 Loan_ID (Unique Loan ID)                                        
 Gender (Male/ Female)                                  
@@ -26,12 +26,12 @@ ApplicantIncome (Applicant income)
 CoapplicantIncome (Coapplicant income)                                                    
 LoanAmount (Loan amount in thousands)                                                    
 Loan_Amount_Term (Term of loan in months)                                                        
-Credit_History (Credit history meets guidelines)                                                
-Property_Area (Urban/ Semi Urban/ Rural)                                                     
-Loan_Status (Loan approved (Y/N))                                 
+Credit_History (Credit history meets guidelines. 1-good, 0-not good)    
+Property_Area (Urban/ Semi Urban/ Rural)                                                         
+Loan_Status (Loan approved (Y/N))                                                                                                                                                                                         
 
 
-Objective:
+####Objective:
 
 This project asks you to determine whether a loan will get approved or not. Also, try to find good insights with a financial management perspective.
 
@@ -142,8 +142,27 @@ cat('\nThe proportions for coapplicant income zero - for various loan status:\n'
 prop.table(tab,2)
  
 
+#checking if some relation between education and loan status
+tab <- table(loan_status=loan_train1$Loan_Status,education=loan_train1$Education)
+cat('\nThe proportions of education - for various loan status:\n')
+prop.table(tab,2)
 
 
+#checking if some relation between marital status and loan status
+tab <- table(loan_status=loan_train1$Loan_Status,married=loan_train1$Married)
+cat('\nThe proportions of marital status - for various loan status:\n')
+prop.table(tab,2)
+
+#checking if some relation between number of dependents and loan status
+tab <- table(loan_status=loan_train1$Loan_Status,num_of_dependents=loan_train1$Dependents)
+cat('\nThe proportions of number of dependents - for various loan status:\n')
+prop.table(tab,2)
+
+
+#checking if some relation between property area and loan status
+tab <- table(loan_status=loan_train1$Loan_Status,prop_area=loan_train1$Property_Area)
+cat('\nThe proportions of property area - for various loan status:\n')
+prop.table(tab,2)
 
 ```
 
@@ -155,4 +174,36 @@ Can infer that:
 - There seems no relation between self employment and loan status (approved cases for both self employed and non-self employed is same - 68%)
 - The approved cases for credit_history "1" customers is significantly high(79%) than credit_history "0" customers(31%)
 - The approval rate for cases where there is coaaplicant income is higher(71%) than cases where there is no coapplicant income(64%).
+- The approval rate for cases where the applicant is married is higher(71%) than cases where there the applicant is not married(62%).
+- The approval rate for cases where the number of dependents is <3 is greater than cases where there the number of dependents is 3+ 
+- The approval rate for urban and semiurban(65% and 76%) properties is greater than rural properties(61%) 
+
+
+
+### Splitting the data into train and validation set
+
+```{r}
+
+loan_idx <- sample(1:nrow(loan_train1),0.7*nrow(loan_train1))
+app_train <- loan_train1[loan_idx,]
+app_val <- loan_train1[-loan_idx,]
+
+```
+
+### Logistic regression
+
+```{r}
+
+#logit.modelt <- glm(Loan_Status ~ Gender + Married + Dependents + Education + Self_Employed + ApplicantIncome + CoapplicantIncome + LoanAmount + Loan_Amount_Term + Credit_History + Property_Area, family = 'binomial', data = app_train)
+
+logit.modelt <- glm(Loan_Status ~ Credit_History+Property_Area, family = 'binomial', data = app_train)
+
+
+summary(logit.modelt)
+
+
+
+```
+
+
 
