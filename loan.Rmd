@@ -45,6 +45,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyr)
 library(dplyr)
 library(ggplot2)
+library(caret)
 ```
 
 ### Loading the data
@@ -180,7 +181,7 @@ Can infer that:
 
 
 
-### Splitting the data into train and validation set
+### Splitting the data into train and validation set (70-30)
 
 ```{r}
 
@@ -191,42 +192,141 @@ app_val <- loan_train1[-loan_idx,]
 
 ```
 
-### Logistic regression
+### Logistic regression (Training the model)
 
 ```{r}
 
-#logit.modelt <- glm(Loan_Status ~ Gender + Married + Dependents + Education + Self_Employed + ApplicantIncome + CoapplicantIncome + LoanAmount + Loan_Amount_Term + Credit_History + Property_Area, family = 'binomial', data = app_train)
+#Below is the model with significant variables after trying multiple combinations
 
-logit.modelt <- glm(Loan_Status ~ Credit_History+Property_Area+LoanAmount+Married+log(ApplicantIncome), family = 'binomial', data = app_train)
+logit.modelt <- glm(Loan_Status ~ Credit_History+Property_Area+LoanAmount+Married, family = 'binomial', data = app_train)
 
 
 summary(logit.modelt)
-
-probs = predict(logit.modelt,app_val,type='response')
-
-library(caret)
-
-glm.pred <- rep('N',length(app_val$Loan_Status))
-glm.pred[probs>0.5]='Y'
-t1 <- table(predicted=glm.pred,actual=app_val$Loan_Status)
-confusionMatrix(t1,positive = 'Y')
-
 
 ```
 
 Can infer below:
 
-- It is fine not to approve the loan for genuine cases but it is risky to approve the loan for likely defaulter.So there is need to increase the True negative rate(specificity)
+-  Credit_History, Property_Area, LoanAmount and Married are significant to the logistic regression model
+
+
+
+### Logistic regression (Validation)
+### Since the number of observations are less, it is better to use K-fold cross validation for correct assesment of accuracy/error in the model
+
+```{r}
+
+k = 10 #Folds
+data <- loan_train1
+
+# sample from 1 to k, nrow times (the number of observations in the data)
+set.seed(11)
+data$id <- sample(1:k, nrow(data), replace = TRUE)
+table(data$id)
+
+# prediction data frame that we add to with each iteration over the folds
+
+prediction <- data.frame()
+
+
+for (i in 1:k)
+  {
+  # select rows with id i to create test set
+  # remove rows with id i from dataframe to create training set
+  testset <- data %>% filter(id==i)
+  trainingset <- setdiff(data,testset)
+  
+  # run the model
+ 
+  mymodel <- glm(Loan_Status ~ Credit_History+Property_Area+LoanAmount+Married, family = 'binomial', data = trainingset)
+
+  
+  # predict Loan Status
+  
+  temp.probs <- predict(mymodel, testset,type='response')
+  temp.pred <- rep('N',length(testset$Loan_Status))
+  temp.pred[temp.probs>0.5]='Y'
+  c1 <- confusionMatrix(table(predicted=temp.pred,actual=testset$Loan_Status),positive = 'Y')
+  
+  temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
+  
+  # append this iteration's accuracy from confusion matrix to the end of data frame
+  prediction <- rbind(prediction, temp1 ) 
+  
+
+}
+
+# Use Mean Accuracy as Evalution 
+
+k_evaluate <- sapply(prediction[,1:4],mean); k_evaluate
+
+
+```
+
+Can infer that:
+
+- Accuracy of Logistic regression model is 0.77
+
+### Decision Tree
 
 
 ```{r}
 
-glm.pred <- rep('N',length(app_val$Loan_Status))
-glm.pred[probs>0.625]='Y'
-t1 <- table(predicted=glm.pred,actual=app_val$Loan_Status)
-confusionMatrix(t1,positive = 'Y')
+library(tree)
+
+tree1 <- tree(Loan_Status ~ .,data=app_train)
+summary(tree1)
+
+plot(tree1)
+text(tree1)
+
+tree.pred <- predict(tree1,app_val,type='class')
+confusionMatrix(tree.pred,app_val$Loan_Status,positive = 'Y')
+
+
+```
+
+Can infer that:
+
+- Accuracy of model is 0.72. That means missclassification is pretty high (0.28)
+- So there is need to prune the tree
+
+
+### Prune the tree
+### Cross validate to check where to stop pruning
+
+```{r}
+
+set.seed(12)
+
+cv_tree <- cv.tree(tree1,FUN=prune.misclass)
+names(cv_tree)
+plot(cv_tree$size,cv_tree$dev,type='b')
+
+
+#cv_tree1 <- cv.tree(tree1,FUN=prune.tree)
+#names(cv_tree1)
+
+```
+
+### Prune the tree
+
+```{r}
+
+pruned_model <- prune.misclass(tree1,best=2)
+plot(pruned_model)
+text(pruned_model)
 
 ```
 
 
+### Check how is it doing
+
+```{r}
+
+tree.pred <- predict(pruned_model,app_val,type='class')
+confusionMatrix(tree.pred,app_val$Loan_Status,positive = 'Y')
+
+
+```
 
