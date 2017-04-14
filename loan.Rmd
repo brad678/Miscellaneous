@@ -374,8 +374,125 @@ Can infer that:
 
 - The accuracy of random forest is pretty similar(although slightly less) to that of logistic regression and decision tree
 - Reason for that might be: 
-    If the predictions of the trees are stable, all submodels in the ensemble return the same         prediction and then the prediction of the random forest is just the same as the prediction of     each single tree.
+    If the predictions of the trees are stable, all submodels in the ensemble return the same prediction and then the     prediction of the random forest is just the same as the prediction of each single tree.
     So then the overall performance be the same 
     
     
-    
+### KNN 
+### Since the number of observations are less, it is better to use K-fold cross validation for correct assesment of accuracy/error in the model
+
+
+```{r}
+
+library(class)
+k = 10 #Folds
+data[,c(1:5,11,12)] <- sapply(data[,c(1:5,11,12)], function(x) as.numeric(x))
+data[,12] <- as.factor(data[,12])
+data[,6:9] <- scale(data[,6:9],center=TRUE,scale=TRUE)
+
+table(data$id)  #data is split into 10 folds already above
+
+# prediction data frame that we add to with each iteration over the folds
+
+prediction <- data.frame()
+
+
+for (i in 1:k)
+  {
+  # select rows with id i to create test set
+  # remove rows with id i from dataframe to create training set
+  testset <- data %>% filter(id==i)
+  trainingset <- setdiff(data,testset)
+  
+  # run a knn model
+  
+  mymodel <- knn(train=trainingset,test=testset,cl=trainingset[,"Loan_Status"],k=6)
+  
+  
+  # predict Loan Status
+  
+  c1 <- confusionMatrix(table(predicted=mymodel,actual=testset$Loan_Status),positive = '2')
+  
+  temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
+  
+  # append this iteration's accuracy from confusion matrix to the end of data frame
+  prediction <- rbind(prediction, temp1 ) 
+  
+
+}
+
+# Use Mean Accuracy as Evalution 
+
+k_evaluate <- sapply(prediction[,1:4],mean); k_evaluate
+
+
+```
+
+ 
+
+
+```{r}
+
+
+knn_func <- function(j) {
+ 
+  prediction <- data.frame()
+
+
+for (i in 1:k)
+  {
+  # select rows with id i to create test set
+  # remove rows with id i from dataframe to create training set
+  testset <- data %>% filter(id==i)
+  trainingset <- setdiff(data,testset)
+  
+  # run a knn model
+  
+  mymodel <- knn(train=trainingset,test=testset,cl=trainingset[,"Loan_Status"],k=j)
+  
+  
+  # predict Loan Status
+  
+  c1 <- confusionMatrix(table(predicted=mymodel,actual=testset$Loan_Status),positive = '2')
+  
+  temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
+  
+  # append this iteration's accuracy from confusion matrix to the end of data frame
+  prediction <- rbind(prediction, temp1 ) 
+  
+
+}
+
+# Use Mean Accuracy as Evalution 
+
+k_evaluate <- sapply(prediction[,1:4],mean); k_evaluate
+
+return(k_evaluate)
+
+}
+
+
+
+
+
+
+knn_eval <- NULL
+knn_array <- data.frame()
+for (j in 1:30)
+{
+  knn_eval <- knn_func(j)
+  knn_array <- rbind(knn_array,t(as.data.frame(knn_eval)))
+  
+}
+  
+
+
+
+
+
+```
+
+
+
+
+ 
