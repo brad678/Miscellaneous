@@ -56,7 +56,8 @@ loan_train <- read.csv('train_u6lujuX_CVtuZ9i.csv',na.strings = c('NA',''))
 summary(loan_train)
 glimpse(loan_train)
 
-loan_train$Loan_ID <- as.character(loan_train$Loan_ID)
+#removing loan_ID
+loan_train <- loan_train[-1]
 
 ```
 
@@ -109,7 +110,7 @@ glimpse(loan_train1)
 
 
 ```{r}
-loan_train1 <- loan_train1[-c(14:20)]
+loan_train1 <- loan_train1[-c(13:19)]
 miss(loan_train1)
 
 ```
@@ -239,7 +240,9 @@ for (i in 1:k)
   # run the model
  
   mymodel <- glm(Loan_Status ~ Credit_History+Property_Area+LoanAmount+Married, family = 'binomial', data = trainingset)
-
+  
+  #mymodel <- glm(Loan_Status ~ Credit_History, family = 'binomial', data = trainingset)
+  
   
   # predict Loan Status
   
@@ -265,68 +268,114 @@ k_evaluate <- sapply(prediction[,1:4],mean); k_evaluate
 
 Can infer that:
 
-- Accuracy of Logistic regression model is 0.77
+- Accuracy of Logistic regression model is 0.7696
 
-### Decision Tree
-
+### Decision Tree  
+### Since the number of observations are less, it is better to use K-fold cross validation for correct assesment of accuracy/error in the model
 
 ```{r}
 
-library(tree)
+k = 10 #Folds
 
-tree1 <- tree(Loan_Status ~ .,data=app_train)
-summary(tree1)
+table(data$id)  #data is split into 10 folds already above
 
-plot(tree1)
-text(tree1)
+# prediction data frame that we add to with each iteration over the folds
 
-tree.pred <- predict(tree1,app_val,type='class')
-confusionMatrix(tree.pred,app_val$Loan_Status,positive = 'Y')
+prediction <- data.frame()
+
+
+for (i in 1:k)
+  {
+  # select rows with id i to create test set
+  # remove rows with id i from dataframe to create training set
+  testset <- data %>% filter(id==i)
+  trainingset <- setdiff(data,testset)
+  
+  # run a decision tree model
+  mymodel <- tree(Loan_Status ~ .,data=trainingset)
+  #mymodel <- rpart(Loan_Status ~ .,data=trainingset)
+  #mymodel_p <- prune(mymodel, cp=0.01) 
+  
+  
+  # predict Loan Status
+  
+  temp <- predict(mymodel, testset,type='class')
+ 
+  c1 <- confusionMatrix(table(predicted=temp,actual=testset$Loan_Status),positive = 'Y')
+  
+  temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
+  
+  # append this iteration's accuracy from confusion matrix to the end of data frame
+  prediction <- rbind(prediction, temp1 ) 
+  
+
+}
+
+# Use Mean Accuracy as Evalution 
+
+k_evaluate <- sapply(prediction[,1:4],mean); k_evaluate
 
 
 ```
 
 Can infer that:
 
-- Accuracy of model is 0.72. That means missclassification is pretty high (0.28)
-- So there is need to prune the tree
+- The accuracy of decision tree is same as that of logistic regression.
 
-
-### Prune the tree
-### Cross validate to check where to stop pruning
+### Random Forest  
+### Since the number of observations are less, it is better to use K-fold cross validation for correct assesment of accuracy/error in the model
 
 ```{r}
 
-set.seed(12)
+library(randomForest)
+k = 10 #Folds
 
-cv_tree <- cv.tree(tree1,FUN=prune.misclass)
-names(cv_tree)
-plot(cv_tree$size,cv_tree$dev,type='b')
+table(data$id)  #data is split into 10 folds already above
+
+# prediction data frame that we add to with each iteration over the folds
+
+prediction <- data.frame()
 
 
-#cv_tree1 <- cv.tree(tree1,FUN=prune.tree)
-#names(cv_tree1)
+for (i in 1:k)
+  {
+  # select rows with id i to create test set
+  # remove rows with id i from dataframe to create training set
+  testset <- data %>% filter(id==i)
+  trainingset <- setdiff(data,testset)
+  
+  # run a randomForest model
+  set.seed(14)
+  mymodel <- randomForest(Loan_Status ~ .,data=trainingset,ntree=700,mtry=5)
+  
+  
+  # predict Loan Status
+  
+  temp <- predict(mymodel, testset,type='class')
+ 
+  c1 <- confusionMatrix(table(predicted=temp,actual=testset$Loan_Status),positive = 'Y')
+  
+  temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
+  
+  # append this iteration's accuracy from confusion matrix to the end of data frame
+  prediction <- rbind(prediction, temp1 ) 
+  
+
+}
+
+# Use Mean Accuracy as Evalution 
+
+k_evaluate <- sapply(prediction[,1:4],mean); k_evaluate
+
 
 ```
 
-### Prune the tree
+Can infer that:
 
-```{r}
-
-pruned_model <- prune.misclass(tree1,best=2)
-plot(pruned_model)
-text(pruned_model)
-
-```
-
-
-### Check how is it doing
-
-```{r}
-
-tree.pred <- predict(pruned_model,app_val,type='class')
-confusionMatrix(tree.pred,app_val$Loan_Status,positive = 'Y')
-
-
-```
-
+- The accuracy of random forest is pretty similar(although slightly less) to that of logistic regression and decision tree
+- Reason for that might be: 
+    If the predictions of the trees are stable, all submodels in the ensemble return the same         prediction and then the prediction of the random forest is just the same as the prediction of     each single tree.
+    So then the overall performance be the same 
+    
+    
+    
