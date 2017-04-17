@@ -697,9 +697,9 @@ knn_array
 
 
 ```{r}
-#Spliting training set into two parts based on outcome: 70% and 30%
-set.seed(119)
-index <- createDataPartition(loan_train1$Loan_Status, p=0.70, list=FALSE)
+#Spliting training set into two parts based on outcome: 75% and 25%
+set.seed(100)
+index <- createDataPartition(loan_train1$Loan_Status, p=0.75, list=FALSE)
 trainSet <- loan_train1[ index,]
 testSet <- loan_train1[-index,]
 
@@ -720,24 +720,280 @@ fitControl <- trainControl(
 predictors<-c("Credit_History", "LoanAmount", "Loan_Amount_Term", "ApplicantIncome",
   "CoapplicantIncome","Property_Area","Gender","Married","Dependents","Education","Self_Employed")
 
+#predictors<-c("Credit_History", "LoanAmount", "Loan_Amount_Term", "ApplicantIncome",
+ # "CoapplicantIncome")
+
 outcomeName<-'Loan_Status'
 
 ```
 
 
+
+```{r}
+
+#Training the logistic regression model
+
+set.seed(101)
+model_lr<-train(trainSet[,predictors],trainSet[,outcomeName],method='glm',trControl=fitControl)
+
+#Predicting using logistic regression model
+predict_model_lr<-predict(model_lr,testSet[,predictors])
+
+#Checking the accuracy of the logistic regression model
+confusionMatrix(predict_model_lr,testSet[,outcomeName],positive = 'Y')
+
+
+```
  
  
  
 ```{r}
 
 #Training the random forest model
+
+set.seed(102)
 model_rf<-train(trainSet[,predictors],trainSet[,outcomeName],method='rf',trControl=fitControl)
 
 #Predicting using random forest model
 predict_model_rf<-predict(model_rf,testSet[,predictors])
 
 #Checking the accuracy of the random forest model
-confusionMatrix(predict_model_rf,testSet[,outcomeName])
+confusionMatrix(predict_model_rf,testSet[,outcomeName],positive = 'Y')
 
 
 ```
+
+
+
+
+
+```{r}
+
+#Training the knn model
+
+set.seed(103)
+
+trainSet1 <- trainSet
+
+#converting non-numeric data to numeric
+trainSet1[,c(1:5,11)] <- sapply(trainSet1[,c(1:5,11)], function(x) as.numeric(x))
+
+#converting loan status back from numeric to factor 
+#trainSet1[,12] <- as.factor(trainSet1[,12])
+
+#normalise appl income,co-appl income,loan amount, loan amount term
+trainSet1[,6:9] <- scale(trainSet1[,6:9],center=TRUE,scale=TRUE)
+
+
+
+testSet1 <- testSet
+
+#converting non-numeric data to numeric
+testSet1[,c(1:5,11)] <- sapply(testSet1[,c(1:5,11)], function(x) as.numeric(x))
+
+#converting loan status back from numeric to factor 
+#testSet1[,12] <- as.factor(testSet1[,12])
+
+#normalise appl income,co-appl income,loan amount, loan amount term
+testSet1[,6:9] <- scale(testSet1[,6:9],center=TRUE,scale=TRUE)
+
+
+model_knn<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='knn',trControl=fitControl)
+
+#Predicting using knn model
+predict_model_knn <- predict(model_knn,testSet1[,predictors])
+
+#Checking the accuracy of the knn model
+confusionMatrix(predict_model_knn,testSet1[,outcomeName],positive = 'Y')
+
+
+```
+
+
+
+```{r}
+
+#Training the rpart model/decision tree
+
+set.seed(104)
+model_rpart<-train(trainSet[,predictors],trainSet[,outcomeName],method='rpart',trControl=fitControl)
+
+#Predicting using rpart model
+predict_model_rpart<-predict(model_rpart,testSet[,predictors])
+
+#Checking the accuracy of the rpart model
+confusionMatrix(predict_model_rpart,testSet[,outcomeName],positive = 'Y')
+
+
+```
+
+
+
+```{r}
+
+#Training the naive bayes model
+
+set.seed(105)
+model_nb<-train(trainSet[,predictors],trainSet[,outcomeName],method='nb',trControl=fitControl)
+
+#Predicting using naive bayes model
+predict_model_nb<-predict(model_nb,testSet[,predictors])
+
+#Checking the accuracy of the naive bayes model
+confusionMatrix(predict_model_nb,testSet[,outcomeName],positive = 'Y')
+
+
+```
+
+
+```{r}
+
+#Training the svm model
+
+set.seed(106)
+model_svm <- train(trainSet1[,predictors],trainSet1[,outcomeName],method='svmLinear',trControl=fitControl)
+
+#Predicting using svm model
+predict_model_svm<-predict(model_svm,testSet1[,predictors])
+
+#Checking the accuracy of the svm model
+confusionMatrix(predict_model_svm,testSet1[,outcomeName],positive = 'Y')
+
+
+```
+
+
+
+Following are stats:
+
+           Logistic reg        
+accuracy      0.7647
+sensitivity   0.8571
+specificity   0.5625
+
+           Random forest     
+accuracy      0.7712
+sensitivity   0.8571
+specificity   0.5833
+
+
+                Knn     
+accuracy      0.6933
+sensitivity   0.8667
+specificity   0.3333
+
+
+           Decision tree        
+accuracy      0.7647
+sensitivity   0.8571
+specificity   0.5625
+
+
+           Naive Bayes        
+accuracy      0.7582
+sensitivity   0.8381
+specificity   0.5833
+
+
+                SVM        
+accuracy      0.7647
+sensitivity   0.8571
+specificity   0.5625
+
+### Let's try ensembling
+----------------------------------------------------------
+High level steps are:
+
+1) Train the individual base layer models on training data.
+2) Predict using each base layer model for training data and test data. (One key thing to note here is that out of fold predictions are used while predicting for the training data).
+3) Now train the top layer model again on the predictions of the bottom layer models that has been made on the training data.
+4) Finally, predict using the top layer model with the predictions of bottom layer models that has been made for testing data.
+----------------------------------------------------------
+Step 1) is already done above.
+----------------------------------------------------------
+Let's combine different models to form an ensemble.
+
+Two of the key principles for selecting the models:
+
+- The individual models fulfill particular accuracy criteria.
+- The model predictions of various individual models are not highly correlated with the predictions of other models.
+
+Let's try Random forest and knn that is a strong and a weak model (correlation might be less)
+-----------------------------------------------------------
+
+### Step 2) Predict using each base layer model for training data and test data.
+
+```{r}
+
+#Predicting the out of fold prediction probabilities for training data
+
+trainSet$OOF_pred_rf<-model_rf$pred$Y[order(model_rf$pred$rowIndex)]
+trainSet$OOF_pred_knn<-model_knn$pred$Y[order(model_knn$pred$rowIndex)]
+trainSet$OOF_pred_lr<-model_lr$pred$Y[order(model_lr$pred$rowIndex)]
+
+
+#Predicting probabilities for the test data
+
+testSet$OOF_pred_rf<-predict(model_rf,testSet[predictors],type='prob')$Y
+testSet$OOF_pred_knn<-predict(model_knn,testSet1[predictors],type='prob')$Y
+testSet$OOF_pred_lr<-predict(model_lr,testSet[predictors],type='prob')$Y
+
+```
+
+
+### step 3) Now train the top layer model again on the predictions of the bottom layer models that has been made on the training data.
+
+```{r}
+
+#Predictors for top layer models 
+predictors_top <- c('OOF_pred_rf','OOF_pred_knn','OOF_pred_lr') 
+
+set.seed(107)
+
+#GBM as top layer model (Gradient Boosting)
+model_gbm <- train(trainSet[,predictors_top],trainSet[,outcomeName],method='gbm',trControl=fitControl)
+
+```
+
+
+### Step 4: Finally, predict using the top layer model with the predictions of bottom layer models that has been made for testing data
+
+
+```{r}
+#predict using GBM top layer model
+testSet$gbm_stacked<-predict(model_gbm,testSet[,predictors_top])
+
+```
+
+```{r}
+#check the accuracy
+confusionMatrix(testSet$gbm_stacked,testSet$Loan_Status,positive = 'Y')
+```
+
+Can infer that:
+
+- The correlation between models is high. That is the reason ensembling is having no effect.
+- The best model is random forest. Let's try tuning it further
+
+```{r}
+
+#Training the random forest model
+
+set.seed(109)
+Control <- trainControl(
+  method = "cv",
+  number = 10, search = "grid")
+tunegrid <- expand.grid(mtry=c(1:15), ntree=c(300, 500,100,1500, 2000, 2500))
+model_rf_tune <- train(trainSet[,predictors],trainSet[,outcomeName],method='rf',trControl=Control,tuneGrid=tunegrid)
+
+#Predicting using random forest model
+predict_model_rf_tune<-predict(model_rf_tune,testSet[,predictors])
+
+#Checking the accuracy of the random forest model
+confusionMatrix(predict_model_rf_tune,testSet[,outcomeName],positive = 'Y')
+
+
+```
+
+
+
