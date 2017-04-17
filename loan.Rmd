@@ -275,6 +275,7 @@ Can infer that:
 
 ```{r}
 
+library(tree)
 k = 10 #Folds
 
 table(data$id)  #data is split into 10 folds already above
@@ -374,8 +375,10 @@ Can infer that:
 
 - The accuracy of random forest is pretty similar(although slightly less) to that of logistic regression and decision tree
 - Reason for that might be: 
-    If the predictions of the trees are stable, all submodels in the ensemble return the same prediction and then the     prediction of the random forest is just the same as the prediction of each single tree.
+    If the predictions of the trees are stable, all submodels in the ensemble return the same prediction and then the prediction of the random forest is just the same as the prediction of each single tree.
     So then the overall performance be the same 
+ 
+ 
     
     
 ### KNN 
@@ -383,59 +386,39 @@ Can infer that:
 
 
 ```{r}
+data1 <- data
+
+```
+
+
+```{r}
 
 library(class)
 k = 10 #Folds
+
+
+#converting non-numeric data to numeric
 data[,c(1:5,11,12)] <- sapply(data[,c(1:5,11,12)], function(x) as.numeric(x))
+
+#converting loan status back from numeric to factor 
 data[,12] <- as.factor(data[,12])
+
+#normalise appl income,co-appl income,loan amount, loan amount term
 data[,6:9] <- scale(data[,6:9],center=TRUE,scale=TRUE)
 
 table(data$id)  #data is split into 10 folds already above
 
-# prediction data frame that we add to with each iteration over the folds
-
-prediction <- data.frame()
-
-
-for (i in 1:k)
-  {
-  # select rows with id i to create test set
-  # remove rows with id i from dataframe to create training set
-  testset <- data %>% filter(id==i)
-  trainingset <- setdiff(data,testset)
-  
-  # run a knn model
-  
-  mymodel <- knn(train=trainingset,test=testset,cl=trainingset[,"Loan_Status"],k=6)
-  
-  
-  # predict Loan Status
-  
-  c1 <- confusionMatrix(table(predicted=mymodel,actual=testset$Loan_Status),positive = '2')
-  
-  temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
-  
-  # append this iteration's accuracy from confusion matrix to the end of data frame
-  prediction <- rbind(prediction, temp1 ) 
-  
-
-}
-
-# Use Mean Accuracy as Evalution 
-
-k_evaluate <- sapply(prediction[,1:4],mean); k_evaluate
-
-
 ```
 
  
-
+### Function that does KNN classification for a value of 'k'
 
 ```{r}
 
 
 knn_func <- function(j) {
  
+  # prediction data frame that we add to with each iteration over the folds
   prediction <- data.frame()
 
 
@@ -448,12 +431,13 @@ for (i in 1:k)
   
   # run a knn model
   
-  mymodel <- knn(train=trainingset,test=testset,cl=trainingset[,"Loan_Status"],k=j)
+  knn_pred <<- knn(train=trainingset,test=testset,cl=trainingset[,"Loan_Status"],k=j)
+   
   
   
   # predict Loan Status
   
-  c1 <- confusionMatrix(table(predicted=mymodel,actual=testset$Loan_Status),positive = '2')
+  c1 <- confusionMatrix(table(predicted=knn_pred,actual=testset$Loan_Status),positive = '2')
   
   temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
   
@@ -472,9 +456,11 @@ return(k_evaluate)
 }
 
 
+```
 
+### Running the KNN model for varying values of 'k'
 
-
+```{r}
 
 knn_eval <- NULL
 knn_array <- data.frame()
@@ -486,13 +472,272 @@ for (j in 1:30)
 }
   
 
+knn_array
+
+```
+
+
+Can infer that:
+
+- The accuracy of KNN is better than that of logistic regresion, decision tree and random forest
+- As K value is increasing the accuracy is decreasing.
+- Choice of k is very critical - A small value of k means that noise will have a higher influence on the result. A large value make it computationally expensive and kinda defeats the basic philosophy behind KNN 
+- Let's choose K as an optimal value K = sqrt(N)/2, where N stands for the number of samples in your training dataset. K choosen here is 11.
+
+```{r}
+
+knn_array[11,]
+
+```
+
+
+### Naive Bayes 
+### Since the number of observations are less, it is better to use K-fold cross validation for correct assesment of accuracy/error in the model
+
+```{r}
+
+data <- data1
+
+```
 
 
 
+```{r}
+
+library(e1071)
+k = 10 #Folds
+
+table(data$id)  #data is split into 10 folds already above
+
+# prediction data frame that we add to with each iteration over the folds
+
+prediction <- data.frame()
+
+
+for (i in 1:k)
+  {
+  # select rows with id i to create test set
+  # remove rows with id i from dataframe to create training set
+  testset <- data %>% filter(id==i)
+  trainingset <- setdiff(data,testset)
+  
+  # run a Naive Bayes model
+  
+
+  
+  #mymodel <- naiveBayes(trainingset,trainingset$Loan_Status)
+  mymodel <- naiveBayes(Loan_Status~.,trainingset)
+
+  # predict Loan Status
+  
+  temp <- predict(mymodel, testset,type='class')
+  
+  
+  c1 <- confusionMatrix(table(temp,testset$Loan_Status),positive = 'Y')
+   
+  
+  temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
+  
+  # append this iteration's accuracy from confusion matrix to the end of data frame
+  prediction <- rbind(prediction, temp1 ) 
+  
+
+}
+
+# Use Mean Accuracy as Evalution 
+
+k_evaluate <- sapply(prediction[,1:4],mean); k_evaluate
+
+
+```
+
+
+Can infer that:
+
+- This model has given accuracy of 0.7554
+
+
+### SVM 
+### Since the number of observations are less, it is better to use K-fold cross validation for correct assesment of accuracy/error in the model
+
+
+
+```{r}
+
+library(e1071)
+k = 10 #Folds
+
+table(data$id)  #data is split into 10 folds already above
+
+# prediction data frame that we add to with each iteration over the folds
+
+prediction <- data.frame()
+
+
+for (i in 1:k)
+  {
+  # select rows with id i to create test set
+  # remove rows with id i from dataframe to create training set
+  testset <- data %>% filter(id==i)
+  trainingset <- setdiff(data,testset)
+  
+  # run a SVM model
+  
+  mymodel <- svm(Loan_Status~.,data=trainingset,kernel='linear',cost=0.01,scale=T)
+  
+
+  # predict Loan Status
+  
+  temp <- predict(mymodel, testset,type='class')
+  
+  
+  c1 <- confusionMatrix(table(temp,testset$Loan_Status),positive = 'Y')
+   
+  
+  temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
+  
+  # append this iteration's accuracy from confusion matrix to the end of data frame
+  prediction <- rbind(prediction, temp1 ) 
+  
+
+}
+
+# Use Mean Accuracy as Evalution 
+
+k_evaluate <- sapply(prediction[,1:4],mean); k_evaluate
+
+
+```
+
+Can infer that:
+
+- The accuracy of svm model is 0.7696
+
+
+
+### The accuracies of all models are as follows:
+
+logistic regression: 0.7696929
+decision tree      : 0.7696929
+random forest      : 0.7569171
+KNN                : 0.8102985 (11 neighbors)
+Naive Bayes        : 0.7554259
+SVM                : 0.7696929
+
+
+
+
+
+ 
+### Function that does KNN classification for a value of 'k'
+
+```{r}
+
+
+knn_funcw <- function(j) {
+ 
+  # prediction data frame that we add to with each iteration over the folds
+  prediction <- data.frame()
+
+
+for (i in 1:k)
+  {
+  # select rows with id i to create test set
+  # remove rows with id i from dataframe to create training set
+  testset <- data %>% filter(id==i)
+  trainingset <- setdiff(data,testset)
+  
+  # run a kknn model
+  
+  kknn_pred <- kknn(Loan_Status~.,trainingset,testset,scale = TRUE, distance = 7, kernel = "triangular",k=j)
+   
+  
+  
+  # predict Loan Status
+  
+  c1 <- confusionMatrix(table(predicted=fitted(kknn_pred),actual=testset$Loan_Status),positive = 'Y')
+  
+  temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
+  
+  # append this iteration's accuracy from confusion matrix to the end of data frame
+  prediction <- rbind(prediction, temp1 ) 
+  
+
+}
+
+# Use Mean Accuracy as Evalution 
+
+k_evaluate <- sapply(prediction[,1:4],mean); k_evaluate
+
+return(k_evaluate)
+
+}
+
+
+```
+
+### Running the KNN model for varying values of 'k'
+
+```{r}
+
+library(kknn)
+k = 10 #Folds
+knn_eval <- NULL
+knn_array <- data.frame()
+
+
+knn_eval <- knn_funcw(14)
+knn_array <- rbind(knn_array,t(as.data.frame(knn_eval)))
+  
+
+
+knn_array
+
+```
+
+
+```{r}
+#Spliting training set into two parts based on outcome: 70% and 30%
+set.seed(119)
+index <- createDataPartition(loan_train1$Loan_Status, p=0.70, list=FALSE)
+trainSet <- loan_train1[ index,]
+testSet <- loan_train1[-index,]
 
 ```
 
 
 
 
+```{r}
+#Defining the training controls for multiple models
+fitControl <- trainControl(
+  method = "cv",
+  number = 10,
+  savePredictions = 'final',
+  classProbs = T)
+
+#Defining the predictors and outcome
+predictors<-c("Credit_History", "LoanAmount", "Loan_Amount_Term", "ApplicantIncome",
+  "CoapplicantIncome","Property_Area","Gender","Married","Dependents","Education","Self_Employed")
+
+outcomeName<-'Loan_Status'
+
+```
+
+
  
+ 
+ 
+```{r}
+
+#Training the random forest model
+model_rf<-train(trainSet[,predictors],trainSet[,outcomeName],method='rf',trControl=fitControl)
+
+#Predicting using random forest model
+predict_model_rf<-predict(model_rf,testSet[,predictors])
+
+#Checking the accuracy of the random forest model
+confusionMatrix(predict_model_rf,testSet[,outcomeName])
+
+
+```
