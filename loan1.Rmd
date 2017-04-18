@@ -246,7 +246,7 @@ temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensit
 
 prediction <<- prediction[-1,]
 prediction <<- rbind(prediction, log_reg=temp1 )
-prediction[1,]
+prediction['log_reg',]
 
 ```
  
@@ -272,7 +272,7 @@ temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensit
 
 prediction <<- prediction[-2,]
 prediction <<- rbind(prediction, random_forest=temp1 )
-prediction[2,]
+prediction['random_forest',]
 
 
 ```
@@ -329,7 +329,7 @@ temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensit
 
 prediction <<- prediction[-3,]
 prediction <<- rbind(prediction, k_nearest=temp1 )
-prediction[3,]
+prediction['k_nearest',]
 
 
 ```
@@ -359,7 +359,7 @@ temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensit
 
 prediction <<- prediction[-4,]
 prediction <<- rbind(prediction, decision_tree=temp1 )
-prediction[4,]
+prediction['decision_tree',]
 
 
 ```
@@ -390,7 +390,7 @@ temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensit
 
 prediction <<- prediction[-5,]
 prediction <<- rbind(prediction, naive_bayes=temp1 )
-prediction[5,]
+prediction['naive_bayes',]
 
 
 ```
@@ -421,7 +421,7 @@ temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensit
 
 prediction <<- prediction[-6,]
 prediction <<- rbind(prediction, svm=temp1 )
-prediction[6,]
+prediction['svm',]
 
 
 ```
@@ -496,8 +496,9 @@ predictors_top <- c('OOF_pred_rf','OOF_pred_knn')
 set.seed(107)
 
 #GBM as top layer model (Gradient Boosting)
-library(gbm)
-model_gbm <- train(trainSet[,predictors_top],trainSet[,outcomeName],method='gbm',trControl=fitControl)
+model_gbm <- train(trainSet[,predictors_top],trainSet[,outcomeName],method='gbm',trControl=fitControl,verbose = FALSE)
+#verbose: logical. Should R report extra information on progress? If TRUE then report progress
+model_gbm
 
 ```
 
@@ -525,13 +526,11 @@ Can infer that:
 
 #Training the random forest model
 
-set.seed(109)
-Control <- trainControl(
-  method = "cv",
-  number = 10, search = "grid")
-#tunegrid <- expand.grid(mtry=c(1:15), ntree=c(300, 500,100,1500, 2000, 2500))
-tunegrid <- expand.grid(.mtry=c(1:15))
-model_rf_tune <- train(trainSet[,predictors],trainSet[,outcomeName],method='rf',trControl=Control,tuneGrid=tunegrid)
+set.seed(102)
+#using 10-fold cross validation
+
+model_rf_tune<-train(trainSet[,predictors],trainSet[,outcomeName],method='rf',trControl=fitControl,nodesize=2)
+model_rf_tune
 
 #Predicting using random forest model
 predict_model_rf_tune<-predict(model_rf_tune,testSet[,predictors])
@@ -542,4 +541,77 @@ confusionMatrix(predict_model_rf_tune,testSet[,outcomeName],positive = 'Y')
 
 ```
 
+
+
+
+```{r}
+
+
+# Example of Stacking algorithms
+# create submodels
+ 
+library(caretEnsemble)
+algorithmList <- c('glm', 'rf', 'knn', 'rpart', 'nb', 'svmLinear')
+set.seed(150)
+models <- caretList(trainSet1[,predictors],trainSet1[,outcomeName], trControl=fitControl, methodList=algorithmList)
+results <- resamples(models)
+summary(results)
+dotplot(results)
+
+
+```
+
+
+```{r}
+# correlation between results
+modelCor(results)
+```
+
+
+
+
+
+```{r}
+
+
+# stack using glm
+
+set.seed(150)
+stack.glm <- caretStack(models, method="glm", metric="Accuracy", trControl=fitControl)
+print(stack.glm)
+
+
+```
+
+```{r}
+
+
+
+ 
+# stack using random forest
+set.seed(150)
+stack.rf <- caretStack(models, method="rf", metric="Accuracy", trControl=fitControl)
+print(stack.rf)
+
+
+```
+
+
+```{r}
+
+
+# stack using glm
+
+set.seed(150)
+stack.glm <- caretStack(c(models$rf,models$knn), method="glm", metric="Accuracy", trControl=fitControl)
+print(stack.glm)
+
+#Predicting using logistic regression model
+predict_model_stack1<-predict(stack.glm,testSet1[,predictors])
+
+#Checking the accuracy of the logistic regression model
+confusionMatrix(predict_model_stack1,testSet1[,outcomeName],positive = 'Y')
+
+
+```
 
