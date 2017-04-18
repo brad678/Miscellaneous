@@ -1,0 +1,545 @@
+---
+title: "Loan Prediction"
+output: 
+  html_document: 
+    smart: no
+---
+
+### Project details: 
+
+####Domain: Banking and Finance
+####Project: Loan Prediction
+####Data: loan.zip
+
+####Description:
+This data corresponds to a set of financial transactions associated with individuals. You are provided with over one thousand observations (test + train) and nearly 13 features. Each observation is independent from the previous.
+
+####Variable Description:
+
+Loan_ID (Unique Loan ID)                                        
+Gender (Male/ Female)                                  
+Married (Applicant married (Y/N))                                                       
+Dependents (Number of dependents)                            
+Education (Applicant Education (Graduate/ Under Graduate))                    
+Self_Employed (Self-employed (Y/N))                   
+ApplicantIncome (Applicant income)                                                        
+CoapplicantIncome (Coapplicant income)                                                    
+LoanAmount (Loan amount in thousands)                                                    
+Loan_Amount_Term (Term of loan in months)                                                        
+Credit_History (Credit history meets guidelines. 1-good, 0-not good)    
+Property_Area (Urban/ Semi Urban/ Rural)                                                         
+Loan_Status (Loan approved (Y/N))                                                                                                                                                                                         
+
+
+####Objective:
+
+This project asks you to determine whether a loan will get approved or not. Also, try to find good insights with a financial management perspective.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(caret)
+```
+
+### Loading the data
+
+```{r}
+
+loan_train <- read.csv('train_u6lujuX_CVtuZ9i.csv',na.strings = c('NA',''))
+summary(loan_train)
+glimpse(loan_train)
+
+#removing loan_ID
+loan_train <- loan_train[-1]
+
+```
+
+Can find the missing values in:
+
+- gender (13)         
+- married (3)           
+- dependents (15)                   
+- self-employed (32)            
+- loan amount (22)            
+- loan amount term (14)           
+- credit history (50)         
+
+
+### Finding columns and rows with missing values using function
+```{r}
+miss <- function(x) {
+ cat('\nThe columns having missing values are:')
+ for(i in 1:ncol(x)) {
+  if(length(x[i][is.na(x[i])]) > 0) {
+    cat('\n',names(x[i]),':',length(x[i][is.na(x[i])]))
+  }
+ } 
+  cat('\n\nThe number of rows with missing values are:',nrow(x)-nrow(na.omit(x)))
+  cat('\nThe proportion of missing values is:',signif((nrow(x)-nrow(na.omit(x)))/nrow(x),2))
+}
+
+miss(loan_train)
+```
+
+### Use kNN imputaion to handle missing values (k is choosen as square root of obs.)
+### For numerical data, weighted average is used. The data points that are near are weighted more than far away data points.
+### For Categorical data, mode is used
+
+```{r, message=FALSE, warning=FALSE}
+library(VIM)     #for kNN
+library(laeken)  #for weightedMean
+
+loan_train1 <- kNN(loan_train,variable=c('Gender','Married','Dependents','Self_Employed','LoanAmount','Loan_Amount_Term','Credit_History'),k=23,numFun = weightedMean,weightDist=TRUE)
+
+summary(loan_train1)
+glimpse(loan_train1)
+
+
+```
+
+
+### Remove the extra columns created by kNN imputation. 
+### Validate any missing values are present
+
+
+```{r}
+loan_train1 <- loan_train1[-c(13:19)]
+miss(loan_train1)
+
+```
+
+### Data Visualization
+
+```{r}
+
+ggplot(data=loan_train1,aes(Loan_Status,LoanAmount))+geom_boxplot()+labs(title='Loan Status vs Loan Amount')
+
+ggplot(data=loan_train1,aes(Loan_Status,ApplicantIncome))+geom_boxplot()+labs(title='Loan Status vs Applicant Income')
+
+ggplot(data=loan_train1,aes(LoanAmount,ApplicantIncome,color=Loan_Status))+geom_point()+labs(title='Loan Amount vs Applicant Income - for various Loan status')
+
+ggplot(data=loan_train1,aes(LoanAmount,ApplicantIncome))+geom_point()+facet_wrap(~Loan_Status)+labs(title='Loan Amount vs Applicant Income - for various Loan status')
+
+#checking if some relation between self employment and loan status
+tab <- table(loan_status=loan_train1$Loan_Status,self_employed=loan_train1$Self_Employed)
+cat('\nThe proportions of self employment - for various loan status:\n')
+prop.table(tab,2)
+
+#checking if some relation between Credit history and loan status
+tab <- table(loan_status=loan_train1$Loan_Status,credit_history=loan_train1$Credit_History)
+cat('\nThe proportions of credit history - for various loan status:\n')
+prop.table(tab,2)
+ 
+
+#checking if some relation between Coapplicant income and loan status
+tab <- table(loan_status=loan_train1$Loan_Status,coapp_inc_0=loan_train1$CoapplicantIncome==0)
+cat('\nThe proportions for coapplicant income zero - for various loan status:\n')
+prop.table(tab,2)
+ 
+
+#checking if some relation between education and loan status
+tab <- table(loan_status=loan_train1$Loan_Status,education=loan_train1$Education)
+cat('\nThe proportions of education - for various loan status:\n')
+prop.table(tab,2)
+
+
+#checking if some relation between marital status and loan status
+tab <- table(loan_status=loan_train1$Loan_Status,married=loan_train1$Married)
+cat('\nThe proportions of marital status - for various loan status:\n')
+prop.table(tab,2)
+
+#checking if some relation between number of dependents and loan status
+tab <- table(loan_status=loan_train1$Loan_Status,num_of_dependents=loan_train1$Dependents)
+cat('\nThe proportions of number of dependents - for various loan status:\n')
+prop.table(tab,2)
+
+
+#checking if some relation between property area and loan status
+tab <- table(loan_status=loan_train1$Loan_Status,prop_area=loan_train1$Property_Area)
+cat('\nThe proportions of property area - for various loan status:\n')
+prop.table(tab,2)
+
+```
+
+Can infer that:
+
+- The loans that got approved are the ones that took less loan amount compared to that of rejected.
+- Applicant income doesn't seem different for approved/rejected loans
+- As applicant income increases, loan amount increases. The rejected cases are mostly the ones with more loan amount and lesser applicant income (though there are lots of outliers)
+- There seems no relation between self employment and loan status (approved cases for both self employed and non-self employed is same - 68%)
+- The approved cases for credit_history "1" customers is significantly high(79%) than credit_history "0" customers(31%)
+- The approval rate for cases where there is coaaplicant income is higher(71%) than cases where there is no coapplicant income(64%).
+- The approval rate for cases where the applicant is married is higher(71%) than cases where there the applicant is not married(62%).
+- The approval rate for cases where the number of dependents is <3 is greater than cases where there the number of dependents is 3+ 
+- The approval rate for urban and semiurban(65% and 76%) properties is greater than rural properties(61%) 
+
+### Spliting training set into two parts based on outcome: 75% and 25%
+
+```{r}
+
+set.seed(100)
+index <- createDataPartition(loan_train1$Loan_Status, p=0.75, list=FALSE)
+trainSet <- loan_train1[ index,]
+testSet <- loan_train1[-index,]
+
+```
+
+
+### Defining the training controls for multiple models
+
+```{r}
+#using 10-fold cross validation
+fitControl <- trainControl(
+  method = "cv",
+  number = 10,
+  savePredictions = 'final',
+  classProbs = T)
+
+```
+
+###Defining the predictors and outcome
+
+```{r}
+
+predictors<-c("Credit_History", "LoanAmount", "Loan_Amount_Term", "ApplicantIncome",
+  "CoapplicantIncome","Property_Area","Gender","Married","Dependents","Education","Self_Employed")
+
+#predictors<-c("Credit_History", "LoanAmount", "Loan_Amount_Term", "ApplicantIncome",
+ # "CoapplicantIncome")
+
+outcomeName<-'Loan_Status'
+
+```
+
+
+```{r}
+prediction <<- data.frame()
+
+```
+
+
+
+### Logistic regression
+
+```{r}
+
+#Training the logistic regression model
+
+set.seed(101)
+model_lr<-train(trainSet[,predictors],trainSet[,outcomeName],method='glm',trControl=fitControl)
+model_lr
+
+#Predicting using logistic regression model
+predict_model_lr<-predict(model_lr,testSet[,predictors])
+
+#Checking the accuracy of the logistic regression model
+c1 <- confusionMatrix(predict_model_lr,testSet[,outcomeName],positive = 'Y')
+
+temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
+
+prediction <<- prediction[-1,]
+prediction <<- rbind(prediction, log_reg=temp1 )
+prediction[1,]
+
+```
+ 
+ Can infer that:
+ 
+ -  Accuracy is 0.7647
+ 
+```{r}
+
+#Training the random forest model
+
+set.seed(102)
+model_rf<-train(trainSet[,predictors],trainSet[,outcomeName],method='rf',trControl=fitControl)
+model_rf
+
+#Predicting using random forest model
+predict_model_rf<-predict(model_rf,testSet[,predictors])
+
+#Checking the accuracy of the random forest model
+c1 <- confusionMatrix(predict_model_rf,testSet[,outcomeName],positive = 'Y')
+
+temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
+
+prediction <<- prediction[-2,]
+prediction <<- rbind(prediction, random_forest=temp1 )
+prediction[2,]
+
+
+```
+
+Can infer that:
+
+- The optimal value of mtry choosen is 2
+- Accuracy is 0.7712
+
+
+
+```{r}
+
+#Training the knn model
+
+set.seed(103)
+
+trainSet1 <- trainSet
+
+#converting non-numeric data to numeric
+trainSet1[,c(1:5,11)] <- sapply(trainSet1[,c(1:5,11)], function(x) as.numeric(x))
+
+#converting loan status back from numeric to factor 
+#trainSet1[,12] <- as.factor(trainSet1[,12])
+
+#normalise appl income,co-appl income,loan amount, loan amount term
+trainSet1[,6:9] <- scale(trainSet1[,6:9],center=TRUE,scale=TRUE)
+
+
+
+testSet1 <- testSet
+
+#converting non-numeric data to numeric
+testSet1[,c(1:5,11)] <- sapply(testSet1[,c(1:5,11)], function(x) as.numeric(x))
+
+#converting loan status back from numeric to factor 
+#testSet1[,12] <- as.factor(testSet1[,12])
+
+#normalise appl income,co-appl income,loan amount, loan amount term
+testSet1[,6:9] <- scale(testSet1[,6:9],center=TRUE,scale=TRUE)
+
+
+model_knn<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='knn',trControl=fitControl)
+model_knn
+
+#Predicting using knn model
+predict_model_knn <- predict(model_knn,testSet1[,predictors])
+
+#Checking the accuracy of the knn model
+c1 <- confusionMatrix(predict_model_knn,testSet1[,outcomeName],positive = 'Y')
+
+
+temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
+
+prediction <<- prediction[-3,]
+prediction <<- rbind(prediction, k_nearest=temp1 )
+prediction[3,]
+
+
+```
+
+Can infer that:
+
+- The optimal number of neighbours choosen is 7
+- Accuracy is 0.6993
+
+
+```{r}
+
+#Training the rpart model/decision tree
+
+set.seed(104)
+model_rpart<-train(trainSet[,predictors],trainSet[,outcomeName],method='rpart',trControl=fitControl)
+model_rpart
+
+#Predicting using rpart model
+predict_model_rpart<-predict(model_rpart,testSet[,predictors])
+
+#Checking the accuracy of the rpart model
+c1 <- confusionMatrix(predict_model_rpart,testSet[,outcomeName],positive = 'Y')
+
+
+temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
+
+prediction <<- prediction[-4,]
+prediction <<- rbind(prediction, decision_tree=temp1 )
+prediction[4,]
+
+
+```
+
+Can infer that:
+
+- The optimal value of complexity paramter(CP) choosen is 0.009722222
+- The complexity parameter (cp) is used to control the size of the decision tree and to select the optimal tree size. If the cost of adding another variable to the decision tree from the current node is above the value of cp, then tree building does not continue
+- Accuracy is 0.7647
+
+
+
+```{r}
+
+#Training the naive bayes model
+
+set.seed(105)
+model_nb<-train(trainSet[,predictors],trainSet[,outcomeName],method='nb',trControl=fitControl)
+model_nb
+
+#Predicting using naive bayes model
+predict_model_nb<-predict(model_nb,testSet[,predictors])
+
+#Checking the accuracy of the naive bayes model
+c1 <- confusionMatrix(predict_model_nb,testSet[,outcomeName],positive = 'Y')
+
+temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
+
+prediction <<- prediction[-5,]
+prediction <<- rbind(prediction, naive_bayes=temp1 )
+prediction[5,]
+
+
+```
+
+
+Can infer that:
+
+- The optimal value of kernel is FALSE
+- Accuracy is 0.7581
+
+
+```{r}
+
+#Training the svm model
+
+set.seed(106)
+model_svm <- train(trainSet1[,predictors],trainSet1[,outcomeName],method='svmLinear',trControl=fitControl)
+model_svm
+
+#Predicting using svm model
+predict_model_svm<-predict(model_svm,testSet1[,predictors])
+
+#Checking the accuracy of the svm model
+c1 <- confusionMatrix(predict_model_svm,testSet1[,outcomeName],positive = 'Y')
+
+
+temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
+
+prediction <<- prediction[-6,]
+prediction <<- rbind(prediction, svm=temp1 )
+prediction[6,]
+
+
+```
+
+
+Can infer that:
+
+- The cost used was 1
+- Accuracy is 0.7647
+
+### Accucuracies of all models
+
+```{r}
+
+prediction
+
+```
+
+Can infer that:
+
+- The accuracy of random forest is highest amongst all
+
+
+### Let's try ensembling to see if performance enhances
+----------------------------------------------------------
+High level steps are:
+
+1) Train the individual base layer models on training data.
+2) Predict using each base layer model for training data and test data. (One key thing to note here is that out of fold predictions are used while predicting for the training data).
+3) Now train the top layer model again on the predictions of the bottom layer models that has been made on the training data.
+4) Finally, predict using the top layer model with the predictions of bottom layer models that has been made for testing data.
+----------------------------------------------------------
+Step 1) is already done above.
+----------------------------------------------------------
+Let's combine different models to form an ensemble.
+
+Two of the key principles for selecting the models:
+
+- The individual models fulfill particular accuracy criteria.
+- The model predictions of various individual models are not highly correlated with the predictions of other models.
+
+Let's try Random forest and knn that is a strong and a weak model (correlation might be less)
+-----------------------------------------------------------
+
+### Step 2) Predict using each base layer model for training data and test data.
+
+```{r}
+
+#Predicting the out of fold prediction probabilities for training data
+
+trainSet$OOF_pred_rf<-model_rf$pred$Y[order(model_rf$pred$rowIndex)]
+trainSet$OOF_pred_knn<-model_knn$pred$Y[order(model_knn$pred$rowIndex)]
+
+
+
+#Predicting probabilities for the test data
+
+testSet$OOF_pred_rf<-predict(model_rf,testSet[predictors],type='prob')$Y
+testSet$OOF_pred_knn<-predict(model_knn,testSet1[predictors],type='prob')$Y
+
+
+```
+
+
+### step 3) Now train the top layer model again on the predictions of the bottom layer models that has been made on the training data.
+
+```{r}
+
+#Predictors for top layer models 
+predictors_top <- c('OOF_pred_rf','OOF_pred_knn') 
+
+set.seed(107)
+
+#GBM as top layer model (Gradient Boosting)
+library(gbm)
+model_gbm <- train(trainSet[,predictors_top],trainSet[,outcomeName],method='gbm',trControl=fitControl)
+
+```
+
+
+### Step 4: Finally, predict using the top layer model with the predictions of bottom layer models that has been made for testing data
+
+
+```{r}
+#predict using GBM top layer model
+testSet$gbm_stacked<-predict(model_gbm,testSet[,predictors_top])
+
+```
+
+```{r}
+#check the accuracy
+confusionMatrix(testSet$gbm_stacked,testSet$Loan_Status,positive = 'Y')
+```
+
+Can infer that:
+
+- The correlation between models is high. That is the reason ensembling is having no effect.
+- The best model is random forest. Let's try tuning it further
+
+```{r}
+
+#Training the random forest model
+
+set.seed(109)
+Control <- trainControl(
+  method = "cv",
+  number = 10, search = "grid")
+#tunegrid <- expand.grid(mtry=c(1:15), ntree=c(300, 500,100,1500, 2000, 2500))
+tunegrid <- expand.grid(.mtry=c(1:15))
+model_rf_tune <- train(trainSet[,predictors],trainSet[,outcomeName],method='rf',trControl=Control,tuneGrid=tunegrid)
+
+#Predicting using random forest model
+predict_model_rf_tune<-predict(model_rf_tune,testSet[,predictors])
+
+#Checking the accuracy of the random forest model
+confusionMatrix(predict_model_rf_tune,testSet[,outcomeName],positive = 'Y')
+
+
+```
+
+
