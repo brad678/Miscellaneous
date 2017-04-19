@@ -58,6 +58,9 @@ glimpse(loan_train)
 
 #removing loan_ID
 loan_train <- loan_train[-1]
+#making the variables as factor
+loan_train$Credit_History <- as.factor(loan_train$Credit_History)
+loan_train$Loan_Amount_Term <- as.factor(loan_train$Loan_Amount_Term)
 
 ```
 
@@ -115,70 +118,91 @@ miss(loan_train1)
 
 ```
 
-### Data Visualization
+### Data Visualization (Univariate analysis)
+
 
 ```{r}
 
-ggplot(data=loan_train1,aes(Loan_Status,LoanAmount))+geom_boxplot()+labs(title='Loan Status vs Loan Amount')
+cols <- c('Gender', 'Married', 'Dependents', 'Education', 'Self_Employed', 'Credit_History', 'Property_Area', 'Loan_Status','Loan_Amount_Term')
+for (i in 1:length(cols))
+{
+  pl <- ggplot(loan_train1,aes(x=loan_train1[,cols[i]]))+geom_bar()+labs(x=cols[i],title=cols[i])
+  print(pl)
+}
 
-ggplot(data=loan_train1,aes(Loan_Status,ApplicantIncome))+geom_boxplot()+labs(title='Loan Status vs Applicant Income')
-
-ggplot(data=loan_train1,aes(LoanAmount,ApplicantIncome,color=Loan_Status))+geom_point()+labs(title='Loan Amount vs Applicant Income - for various Loan status')
-
-ggplot(data=loan_train1,aes(LoanAmount,ApplicantIncome))+geom_point()+facet_wrap(~Loan_Status)+labs(title='Loan Amount vs Applicant Income - for various Loan status')
-
-#checking if some relation between self employment and loan status
-tab <- table(loan_status=loan_train1$Loan_Status,self_employed=loan_train1$Self_Employed)
-cat('\nThe proportions of self employment - for various loan status:\n')
-prop.table(tab,2)
-
-#checking if some relation between Credit history and loan status
-tab <- table(loan_status=loan_train1$Loan_Status,credit_history=loan_train1$Credit_History)
-cat('\nThe proportions of credit history - for various loan status:\n')
-prop.table(tab,2)
- 
-
-#checking if some relation between Coapplicant income and loan status
-tab <- table(loan_status=loan_train1$Loan_Status,coapp_inc_0=loan_train1$CoapplicantIncome==0)
-cat('\nThe proportions for coapplicant income zero - for various loan status:\n')
-prop.table(tab,2)
- 
-
-#checking if some relation between education and loan status
-tab <- table(loan_status=loan_train1$Loan_Status,education=loan_train1$Education)
-cat('\nThe proportions of education - for various loan status:\n')
-prop.table(tab,2)
-
-
-#checking if some relation between marital status and loan status
-tab <- table(loan_status=loan_train1$Loan_Status,married=loan_train1$Married)
-cat('\nThe proportions of marital status - for various loan status:\n')
-prop.table(tab,2)
-
-#checking if some relation between number of dependents and loan status
-tab <- table(loan_status=loan_train1$Loan_Status,num_of_dependents=loan_train1$Dependents)
-cat('\nThe proportions of number of dependents - for various loan status:\n')
-prop.table(tab,2)
-
-
-#checking if some relation between property area and loan status
-tab <- table(loan_status=loan_train1$Loan_Status,prop_area=loan_train1$Property_Area)
-cat('\nThe proportions of property area - for various loan status:\n')
-prop.table(tab,2)
 
 ```
 
 Can infer that:
 
-- The loans that got approved are the ones that took less loan amount compared to that of rejected.
+- There are more male customers who applied for loan
+- There are more married customers
+- There are more number of customers with 0 dependents. 3+ dependents are very less
+- There are more graduates who applied for loan
+- There are less customers having occupation as self employed
+- There are more customers with credit history of 1
+- There are more customers who applied loan for semi-urban and urban areas
+- There are more customers whose loans are approved
+- There are many customers who applied for loan term as 360 months
+
+
+### Data Visualization (Bivariate analysis)
+
+
+```{r}
+
+cols <- c('Gender', 'Married', 'Dependents', 'Education', 'Self_Employed', 'Credit_History', 'Property_Area', 'Loan_Amount_Term')
+for (i in 1:length(cols))
+{
+  pl <- ggplot(loan_train1,aes(loan_train1$Loan_Status))+geom_bar()+facet_grid(~loan_train1[,cols[i]])+labs(x='Loan Status',title=cols[i])
+  print(pl)
+  
+}
+
+
+ggplot(data=loan_train1,aes(Loan_Status,LoanAmount))+geom_boxplot()+labs(title='Loan Status vs Loan Amount')
+
+ggplot(data=loan_train1,aes(Loan_Status,ApplicantIncome))+geom_boxplot()+labs(title='Loan Status vs Applicant Income')
+
+ggplot(data=loan_train1,aes(Loan_Status,CoapplicantIncome))+geom_boxplot()+labs(title='Loan Status vs CoApplicant Income')
+
+
+
+
+```
+
+Can infer that:
+
+
+
+- More approvals for males (as proportion is high, otherwise not much difference)
+- More approvals for married customers (as proportion is high, otherwise not much difference)
+- More approvals for 0 dependents (as proportion is high, otherwise not much difference) 
+- More approvals for graduates (as proportion is high, otherwise not much difference) 
+- Less approvals for self-employed (as proportion is low, otherwise not much difference)  
+- More approvals for credit history of 1 (as proportion is high, otherwise not much difference)  
+- More approvals for semi-urban and urban areas (as proportion is high, otherwise not much difference)  
+- More approvals for loan term as 360 months (as proportion is high, otherwise not much difference) 
+- The loans that got approved are the ones that took less loan amount compared to that of rejected
 - Applicant income doesn't seem different for approved/rejected loans
+- Coapplicant income doesn't seem different for approved/rejected loans
+
+
+### Data Visualization (Multivariate analysis)
+
+
+```{r}
+
+ggplot(data=loan_train1,aes(LoanAmount,ApplicantIncome,color=Loan_Status))+geom_point()+labs(title='Loan Amount vs Applicant Income - for various Loan status')
+
+ggplot(data=loan_train1,aes(LoanAmount,ApplicantIncome))+geom_point()+facet_wrap(~Loan_Status)+labs(title='Loan Amount vs Applicant Income - for various Loan status')
+
+```
+
+Can infer that:
+
 - As applicant income increases, loan amount increases. The rejected cases are mostly the ones with more loan amount and lesser applicant income (though there are lots of outliers)
-- There seems no relation between self employment and loan status (approved cases for both self employed and non-self employed is same - 68%)
-- The approved cases for credit_history "1" customers is significantly high(79%) than credit_history "0" customers(31%)
-- The approval rate for cases where there is coaaplicant income is higher(71%) than cases where there is no coapplicant income(64%).
-- The approval rate for cases where the applicant is married is higher(71%) than cases where there the applicant is not married(62%).
-- The approval rate for cases where the number of dependents is <3 is greater than cases where there the number of dependents is 3+ 
-- The approval rate for urban and semiurban(65% and 76%) properties is greater than rural properties(61%) 
+
 
 ### Spliting training set into two parts based on outcome: 75% and 25%
 
@@ -211,8 +235,6 @@ fitControl <- trainControl(
 predictors<-c("Credit_History", "LoanAmount", "Loan_Amount_Term", "ApplicantIncome",
   "CoapplicantIncome","Property_Area","Gender","Married","Dependents","Education","Self_Employed")
 
-#predictors<-c("Credit_History", "LoanAmount", "Loan_Amount_Term", "ApplicantIncome",
- # "CoapplicantIncome")
 
 outcomeName<-'Loan_Status'
 
@@ -233,24 +255,25 @@ trainSet1 <- trainSet
 #converting non-numeric data to numeric
 trainSet1[,c(1:5,11)] <- sapply(trainSet1[,c(1:5,11)], function(x) as.numeric(x))
 
-#converting loan status back from numeric to factor 
-#trainSet1[,12] <- as.factor(trainSet1[,12])
+
 
 #normalise appl income,co-appl income,loan amount, loan amount term
-trainSet1[,6:9] <- scale(trainSet1[,6:9],center=TRUE,scale=TRUE)
+trainSet1[,c(6:9)] <- scale(trainSet1[c(6:9)],center=TRUE,scale=TRUE)
+#trainSet1[,c(6:9)] <- sapply(trainSet1[,c(6:9)], function(x) ifelse(x==0,0,log(x)))
 
 
+#loan_train1$FamilySize <- ifelse((loan_train1$CoapplicantIncome>0|loan_train1$Married=="Y"),numDependents+2,numDependents+1)
 
 testSet1 <- testSet
 
 #converting non-numeric data to numeric
 testSet1[,c(1:5,11)] <- sapply(testSet1[,c(1:5,11)], function(x) as.numeric(x))
 
-#converting loan status back from numeric to factor 
-#testSet1[,12] <- as.factor(testSet1[,12])
+
 
 #normalise appl income,co-appl income,loan amount, loan amount term
-testSet1[,6:9] <- scale(testSet1[,6:9],center=TRUE,scale=TRUE)
+testSet1[,c(6:9)] <- scale(testSet1[,c(6:9)],center=TRUE,scale=TRUE)
+#testSet1[,c(6:9)] <- sapply(testSet1[,c(6:9)], function(x) ifelse(x==0,0,log(x)))
 
 ```
 
@@ -563,4 +586,28 @@ confusionMatrix(predict_model_rf_tune,testSet1[,outcomeName],positive = 'Y')
 
 - The accuracy improved very slightly only (from 0.7843 to 0.7908)
 - Sensitivity also increased
+
+
+### Credit History as main variable
+
+
+```{r}
+
+LoanStat <- ifelse(loan_train1$Loan_Status=='Y',1,0)
+table(Loan_Status=LoanStat)
+table(Credit_History=loan_train1$Credit_History)
+confusionMatrix(loan_train1$Credit_History,LoanStat)
+
+```
+
+Can infer that:
+
+- If we simply say credit history of 1(good), approve the loan and credit history of 0(not good) then don't approve the loan, the accuracy of such a inference is 0.7687 which is quite good
+
+
+
+
+
+
+
 
