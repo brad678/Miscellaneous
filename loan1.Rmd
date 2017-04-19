@@ -218,78 +218,16 @@ outcomeName<-'Loan_Status'
 
 ```
 
+### Initializing the table
 
 ```{r}
 prediction <<- data.frame()
 
 ```
 
-
-
-### Logistic regression
+### Normalising the data
 
 ```{r}
-
-#Training the logistic regression model
-
-set.seed(101)
-model_lr<-train(trainSet[,predictors],trainSet[,outcomeName],method='glm',trControl=fitControl)
-model_lr
-
-#Predicting using logistic regression model
-predict_model_lr<-predict(model_lr,testSet[,predictors])
-
-#Checking the accuracy of the logistic regression model
-c1 <- confusionMatrix(predict_model_lr,testSet[,outcomeName],positive = 'Y')
-
-temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
-
-prediction <<- prediction[-1,]
-prediction <<- rbind(prediction, log_reg=temp1 )
-prediction['log_reg',]
-
-```
- 
- Can infer that:
- 
- -  Accuracy is 0.7647
- 
-```{r}
-
-#Training the random forest model
-
-set.seed(102)
-model_rf<-train(trainSet[,predictors],trainSet[,outcomeName],method='rf',trControl=fitControl)
-model_rf
-
-#Predicting using random forest model
-predict_model_rf<-predict(model_rf,testSet[,predictors])
-
-#Checking the accuracy of the random forest model
-c1 <- confusionMatrix(predict_model_rf,testSet[,outcomeName],positive = 'Y')
-
-temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
-
-prediction <<- prediction[-2,]
-prediction <<- rbind(prediction, random_forest=temp1 )
-prediction['random_forest',]
-
-
-```
-
-Can infer that:
-
-- The optimal value of mtry choosen is 2
-- Accuracy is 0.7712
-
-
-
-```{r}
-
-#Training the knn model
-
-set.seed(103)
-
 trainSet1 <- trainSet
 
 #converting non-numeric data to numeric
@@ -313,6 +251,74 @@ testSet1[,c(1:5,11)] <- sapply(testSet1[,c(1:5,11)], function(x) as.numeric(x))
 
 #normalise appl income,co-appl income,loan amount, loan amount term
 testSet1[,6:9] <- scale(testSet1[,6:9],center=TRUE,scale=TRUE)
+
+```
+
+
+### Logistic regression
+
+```{r}
+
+#Training the logistic regression model
+
+set.seed(101)
+model_lr<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='glm',trControl=fitControl)
+model_lr
+
+#Predicting using logistic regression model
+predict_model_lr<-predict(model_lr,testSet1[,predictors])
+
+#Checking the accuracy of the logistic regression model
+c1 <- confusionMatrix(predict_model_lr,testSet1[,outcomeName],positive = 'Y')
+
+temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
+
+prediction <<- prediction[-1,]
+prediction <<- rbind(prediction, log_reg=temp1 )
+prediction['log_reg',]
+
+```
+ 
+ Can infer that:
+ 
+ -  Accuracy is 0.7647
+ 
+```{r}
+
+#Training the random forest model
+
+set.seed(101)
+model_rf<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='rf',trControl=fitControl)
+model_rf
+
+#Predicting using random forest model
+predict_model_rf<-predict(model_rf,testSet1[,predictors])
+
+#Checking the accuracy of the random forest model
+c1 <- confusionMatrix(predict_model_rf,testSet1[,outcomeName],positive = 'Y')
+
+temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
+
+prediction <<- prediction[-2,]
+prediction <<- rbind(prediction, random_forest=temp1 )
+prediction['random_forest',]
+
+
+```
+
+Can infer that:
+
+- The optimal value of mtry choosen is 2
+- Accuracy is 0.7843
+
+
+
+```{r}
+
+#Training the knn model
+
+set.seed(101)
+
 
 
 model_knn<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='knn',trControl=fitControl)
@@ -344,15 +350,15 @@ Can infer that:
 
 #Training the rpart model/decision tree
 
-set.seed(104)
-model_rpart<-train(trainSet[,predictors],trainSet[,outcomeName],method='rpart',trControl=fitControl)
+set.seed(101)
+model_rpart<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='rpart',trControl=fitControl)
 model_rpart
 
 #Predicting using rpart model
-predict_model_rpart<-predict(model_rpart,testSet[,predictors])
+predict_model_rpart<-predict(model_rpart,testSet1[,predictors])
 
 #Checking the accuracy of the rpart model
-c1 <- confusionMatrix(predict_model_rpart,testSet[,outcomeName],positive = 'Y')
+c1 <- confusionMatrix(predict_model_rpart,testSet1[,outcomeName],positive = 'Y')
 
 
 temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
@@ -366,7 +372,7 @@ prediction['decision_tree',]
 
 Can infer that:
 
-- The optimal value of complexity paramter(CP) choosen is 0.009722222
+- The optimal value of complexity paramter(CP) choosen is 0.01736111
 - The complexity parameter (cp) is used to control the size of the decision tree and to select the optimal tree size. If the cost of adding another variable to the decision tree from the current node is above the value of cp, then tree building does not continue
 - Accuracy is 0.7647
 
@@ -376,15 +382,15 @@ Can infer that:
 
 #Training the naive bayes model
 
-set.seed(105)
-model_nb<-train(trainSet[,predictors],trainSet[,outcomeName],method='nb',trControl=fitControl)
+set.seed(101)
+model_nb<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='nb',trControl=fitControl)
 model_nb
 
 #Predicting using naive bayes model
-predict_model_nb<-predict(model_nb,testSet[,predictors])
+predict_model_nb<-predict(model_nb,testSet1[,predictors])
 
 #Checking the accuracy of the naive bayes model
-c1 <- confusionMatrix(predict_model_nb,testSet[,outcomeName],positive = 'Y')
+c1 <- confusionMatrix(predict_model_nb,testSet1[,outcomeName],positive = 'Y')
 
 temp1 <- cbind(Accuracy=c1$overall[['Accuracy']],Sensitivity=c1$byClass[['Sensitivity']],Specificity=c1$byClass[['Specificity']],Precision=c1$byClass[['Precision']])
 
@@ -399,14 +405,14 @@ prediction['naive_bayes',]
 Can infer that:
 
 - The optimal value of kernel is FALSE
-- Accuracy is 0.7581
+- Accuracy is 0.7189
 
 
 ```{r}
 
 #Training the svm model
 
-set.seed(106)
+set.seed(101)
 model_svm <- train(trainSet1[,predictors],trainSet1[,outcomeName],method='svmLinear',trControl=fitControl)
 model_svm
 
@@ -432,7 +438,7 @@ Can infer that:
 - The cost used was 1
 - Accuracy is 0.7647
 
-### Accucuracies of all models
+### Accucuracies of all models (after testing)
 
 ```{r}
 
@@ -443,6 +449,20 @@ prediction
 Can infer that:
 
 - The accuracy of random forest is highest amongst all
+
+
+### Check correlation of models(on training) before trying ensembling
+
+
+```{r}
+
+results <- resamples(list(glm = model_lr, rf = model_rf, knn = model_knn, rpart = model_rpart, nb = model_nb, svm = model_svm))
+summary(results)
+dotplot(results)
+modelCor(results)
+
+```
+
 
 
 ### Let's try ensembling to see if performance enhances
@@ -463,7 +483,7 @@ Two of the key principles for selecting the models:
 - The individual models fulfill particular accuracy criteria.
 - The model predictions of various individual models are not highly correlated with the predictions of other models.
 
-Let's try Random forest and knn that is a strong and a weak model (correlation might be less)
+Let's try Random forest and knn (as correlation is least)
 -----------------------------------------------------------
 
 ### Step 2) Predict using each base layer model for training data and test data.
@@ -472,15 +492,15 @@ Let's try Random forest and knn that is a strong and a weak model (correlation m
 
 #Predicting the out of fold prediction probabilities for training data
 
-trainSet$OOF_pred_rf<-model_rf$pred$Y[order(model_rf$pred$rowIndex)]
-trainSet$OOF_pred_knn<-model_knn$pred$Y[order(model_knn$pred$rowIndex)]
+trainSet1$OOF_pred_rf<-model_rf$pred$Y[order(model_rf$pred$rowIndex)]
+trainSet1$OOF_pred_knn<-model_knn$pred$Y[order(model_knn$pred$rowIndex)]
 
 
 
 #Predicting probabilities for the test data
 
-testSet$OOF_pred_rf<-predict(model_rf,testSet[predictors],type='prob')$Y
-testSet$OOF_pred_knn<-predict(model_knn,testSet1[predictors],type='prob')$Y
+testSet1$OOF_pred_rf<-predict(model_rf,testSet1[predictors],type='prob')$Y
+testSet1$OOF_pred_knn<-predict(model_knn,testSet1[predictors],type='prob')$Y
 
 
 ```
@@ -493,10 +513,10 @@ testSet$OOF_pred_knn<-predict(model_knn,testSet1[predictors],type='prob')$Y
 #Predictors for top layer models 
 predictors_top <- c('OOF_pred_rf','OOF_pred_knn') 
 
-set.seed(107)
+set.seed(101)
 
 #GBM as top layer model (Gradient Boosting)
-model_gbm <- train(trainSet[,predictors_top],trainSet[,outcomeName],method='gbm',trControl=fitControl,verbose = FALSE)
+model_gbm <- train(trainSet1[,predictors_top],trainSet1[,outcomeName],method='gbm',trControl=fitControl,verbose = FALSE)
 #verbose: logical. Should R report extra information on progress? If TRUE then report progress
 model_gbm
 
@@ -508,110 +528,39 @@ model_gbm
 
 ```{r}
 #predict using GBM top layer model
-testSet$gbm_stacked<-predict(model_gbm,testSet[,predictors_top])
+testSet1$gbm_stacked<-predict(model_gbm,testSet1[,predictors_top])
 
 ```
 
 ```{r}
 #check the accuracy
-confusionMatrix(testSet$gbm_stacked,testSet$Loan_Status,positive = 'Y')
+confusionMatrix(testSet1$gbm_stacked,testSet1$Loan_Status,positive = 'Y')
 ```
 
 Can infer that:
 
-- The correlation between models is high. That is the reason ensembling is having no effect.
+- The models are quite similar in nature. That is the reason ensembling is having no effect.
 - The best model is random forest. Let's try tuning it further
 
 ```{r}
 
 #Training the random forest model
 
-set.seed(102)
+set.seed(101)
 #using 10-fold cross validation
 
-model_rf_tune<-train(trainSet[,predictors],trainSet[,outcomeName],method='rf',trControl=fitControl,nodesize=2)
+model_rf_tune<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='rf',trControl=fitControl,nodesize=2,ntree=1000)
 model_rf_tune
 
 #Predicting using random forest model
-predict_model_rf_tune<-predict(model_rf_tune,testSet[,predictors])
+predict_model_rf_tune<-predict(model_rf_tune,testSet1[,predictors])
 
 #Checking the accuracy of the random forest model
-confusionMatrix(predict_model_rf_tune,testSet[,outcomeName],positive = 'Y')
+confusionMatrix(predict_model_rf_tune,testSet1[,outcomeName],positive = 'Y')
 
 
 ```
 
-
-
-
-```{r}
-
-
-# Example of Stacking algorithms
-# create submodels
- 
-library(caretEnsemble)
-algorithmList <- c('glm', 'rf', 'knn', 'rpart', 'nb', 'svmLinear')
-set.seed(150)
-models <- caretList(trainSet1[,predictors],trainSet1[,outcomeName], trControl=fitControl, methodList=algorithmList)
-results <- resamples(models)
-summary(results)
-dotplot(results)
-
-
-```
-
-
-```{r}
-# correlation between results
-modelCor(results)
-```
-
-
-
-
-
-```{r}
-
-
-# stack using glm
-
-set.seed(150)
-stack.glm <- caretStack(models, method="glm", metric="Accuracy", trControl=fitControl)
-print(stack.glm)
-
-
-```
-
-```{r}
-
-
-
- 
-# stack using random forest
-set.seed(150)
-stack.rf <- caretStack(models, method="rf", metric="Accuracy", trControl=fitControl)
-print(stack.rf)
-
-
-```
-
-
-```{r}
-
-
-# stack using glm
-
-set.seed(150)
-stack.glm <- caretStack(c(models$rf,models$knn), method="glm", metric="Accuracy", trControl=fitControl)
-print(stack.glm)
-
-#Predicting using logistic regression model
-predict_model_stack1<-predict(stack.glm,testSet1[,predictors])
-
-#Checking the accuracy of the logistic regression model
-confusionMatrix(predict_model_stack1,testSet1[,outcomeName],positive = 'Y')
-
-
-```
+- The accuracy improved very slightly only (from 0.7843 to 0.7908)
+- Sensitivity also increased
 
