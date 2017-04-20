@@ -252,22 +252,20 @@ prediction <<- data.frame()
 ```{r}
 trainSet1 <- trainSet
 
-#converting non-numeric data to numeric
-trainSet1[,c(1:5,11)] <- sapply(trainSet1[,c(1:5,11)], function(x) as.numeric(x))
+#converting non-numeric(factor) data to numeric
+trainSet1[,c(1:5,9,10,11)] <- sapply(trainSet1[,c(1:5,9,10,11)], function(x) as.numeric(x))
 
 
 
 #normalise appl income,co-appl income,loan amount, loan amount term
-trainSet1[,c(6:9)] <- scale(trainSet1[c(6:9)],center=TRUE,scale=TRUE)
+trainSet1[,c(6:9)] <- scale(trainSet1[,c(6:9)],center=TRUE,scale=TRUE)
 #trainSet1[,c(6:9)] <- sapply(trainSet1[,c(6:9)], function(x) ifelse(x==0,0,log(x)))
 
 
-#loan_train1$FamilySize <- ifelse((loan_train1$CoapplicantIncome>0|loan_train1$Married=="Y"),numDependents+2,numDependents+1)
-
 testSet1 <- testSet
 
-#converting non-numeric data to numeric
-testSet1[,c(1:5,11)] <- sapply(testSet1[,c(1:5,11)], function(x) as.numeric(x))
+#converting non-numeric(factor) data to numeric
+testSet1[,c(1:5,9,10,11)] <- sapply(testSet1[,c(1:5,9,10,11)], function(x) as.numeric(x))
 
 
 
@@ -304,7 +302,7 @@ prediction['log_reg',]
  
  Can infer that:
  
- -  Accuracy is 0.7647
+ -  Accuracy is 0.83
  
 ```{r}
 
@@ -332,7 +330,7 @@ prediction['random_forest',]
 Can infer that:
 
 - The optimal value of mtry choosen is 2
-- Accuracy is 0.7843
+- Accuracy is 0.8235
 
 
 
@@ -365,8 +363,8 @@ prediction['k_nearest',]
 
 Can infer that:
 
-- The optimal number of neighbours choosen is 7
-- Accuracy is 0.6993
+- The optimal number of neighbours choosen is 5
+- Accuracy is 0.7124
 
 
 ```{r}
@@ -395,9 +393,9 @@ prediction['decision_tree',]
 
 Can infer that:
 
-- The optimal value of complexity paramter(CP) choosen is 0.01736111
+- The optimal value of complexity paramter(CP) choosen is 0.0083
 - The complexity parameter (cp) is used to control the size of the decision tree and to select the optimal tree size. If the cost of adding another variable to the decision tree from the current node is above the value of cp, then tree building does not continue
-- Accuracy is 0.7647
+- Accuracy is 0.83
 
 
 
@@ -428,7 +426,7 @@ prediction['naive_bayes',]
 Can infer that:
 
 - The optimal value of kernel is FALSE
-- Accuracy is 0.7189
+- Accuracy is 0.7973
 
 
 ```{r}
@@ -436,7 +434,7 @@ Can infer that:
 #Training the svm model
 
 set.seed(101)
-model_svm <- train(trainSet1[,predictors],trainSet1[,outcomeName],method='svmLinear',trControl=fitControl)
+model_svm <- train(trainSet1[,predictors],trainSet1[,outcomeName],method='svmRadial',trControl=fitControl)
 model_svm
 
 #Predicting using svm model
@@ -458,8 +456,8 @@ prediction['svm',]
 
 Can infer that:
 
-- The cost used was 1
-- Accuracy is 0.7647
+- The cost used was 0.25
+- Accuracy is 0.83
 
 ### Accucuracies of all models (after testing)
 
@@ -471,7 +469,8 @@ prediction
 
 Can infer that:
 
-- The accuracy of random forest is highest amongst all
+- The best model is random forest as it got better accuracy and specificty too.
+- Specificty is critical here we should not give loans to bad customers. We can compromise a bit on Sensitivity.
 
 
 ### Check correlation of models(on training) before trying ensembling
@@ -572,7 +571,7 @@ Can infer that:
 set.seed(101)
 #using 10-fold cross validation
 
-model_rf_tune<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='rf',trControl=fitControl,nodesize=2,ntree=1000)
+model_rf_tune<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='rf',trControl=fitControl,ntree=951)
 model_rf_tune
 
 #Predicting using random forest model
@@ -586,6 +585,16 @@ confusionMatrix(predict_model_rf_tune,testSet1[,outcomeName],positive = 'Y')
 
 - The accuracy improved very slightly only (from 0.7843 to 0.7908)
 - Sensitivity also increased
+
+
+
+```{r}
+
+t12<-predict(model_rf_tune,testSet1[predictors],type='prob')$Y
+t12 <- ifelse(t12>0.635,'Y','N')
+confusionMatrix(t12,testSet1$Loan_Status,positive = 'Y')
+
+```
 
 
 ### Credit History as main variable
@@ -603,7 +612,6 @@ confusionMatrix(loan_train1$Credit_History,LoanStat)
 Can infer that:
 
 - If we simply say credit history of 1(good), approve the loan and credit history of 0(not good) then don't approve the loan, the accuracy of such a inference is 0.7687 which is quite good
-
 
 
 
