@@ -470,7 +470,7 @@ prediction
 Can infer that:
 
 - The best model is random forest as it got better accuracy and specificty too.
-- Specificty is critical here we should not give loans to bad customers. We can compromise a bit on Sensitivity.
+- Specificty(True negative) is critical here as bank should not give loans to bad customers. We can compromise a bit on Sensitivity(True positive).
 
 
 ### Check correlation of models(on training) before trying ensembling
@@ -488,16 +488,20 @@ modelCor(results)
 
 
 ### Let's try ensembling to see if performance enhances
-----------------------------------------------------------
+
+
 High level steps are:
 
 1) Train the individual base layer models on training data.
 2) Predict using each base layer model for training data and test data. (One key thing to note here is that out of fold predictions are used while predicting for the training data).
 3) Now train the top layer model again on the predictions of the bottom layer models that has been made on the training data.
 4) Finally, predict using the top layer model with the predictions of bottom layer models that has been made for testing data.
-----------------------------------------------------------
-Step 1) is already done above.
-----------------------------------------------------------
+
+
+
+### Step 1) is already done above.
+
+
 Let's combine different models to form an ensemble.
 
 Two of the key principles for selecting the models:
@@ -505,8 +509,9 @@ Two of the key principles for selecting the models:
 - The individual models fulfill particular accuracy criteria.
 - The model predictions of various individual models are not highly correlated with the predictions of other models.
 
-Let's try Random forest and knn (as correlation is least)
------------------------------------------------------------
+Let's try svm and knn (as correlation is least)
+
+
 
 ### Step 2) Predict using each base layer model for training data and test data.
 
@@ -514,26 +519,26 @@ Let's try Random forest and knn (as correlation is least)
 
 #Predicting the out of fold prediction probabilities for training data
 
-trainSet1$OOF_pred_rf<-model_rf$pred$Y[order(model_rf$pred$rowIndex)]
+trainSet1$OOF_pred_svm<-model_svm$pred$Y[order(model_svm$pred$rowIndex)]
 trainSet1$OOF_pred_knn<-model_knn$pred$Y[order(model_knn$pred$rowIndex)]
 
 
 
 #Predicting probabilities for the test data
 
-testSet1$OOF_pred_rf<-predict(model_rf,testSet1[predictors],type='prob')$Y
+testSet1$OOF_pred_svm<-predict(model_svm,testSet1[predictors],type='prob')$Y
 testSet1$OOF_pred_knn<-predict(model_knn,testSet1[predictors],type='prob')$Y
 
 
 ```
 
 
-### step 3) Now train the top layer model again on the predictions of the bottom layer models that has been made on the training data.
+### Step 3) Now train the top layer model again on the predictions of the bottom layer models that has been made on the training data.
 
 ```{r}
 
 #Predictors for top layer models 
-predictors_top <- c('OOF_pred_rf','OOF_pred_knn') 
+predictors_top <- c('OOF_pred_svm','OOF_pred_knn') 
 
 set.seed(101)
 
@@ -583,21 +588,29 @@ confusionMatrix(predict_model_rf_tune,testSet1[,outcomeName],positive = 'Y')
 
 ```
 
-- The accuracy improved very slightly only (from 0.7843 to 0.7908)
-- Sensitivity also increased
+Can infer that:
+
+- The accuracy improved very slightly only (from 0.8235 to 0.8301)
+- Specificity also increased from 0.56 to 0.58
 
 
+### Use the best model to try to improve specificty (This decision should be taken in concurrence with bank goals)
 
 ```{r}
 
-t12<-predict(model_rf_tune,testSet1[predictors],type='prob')$Y
-t12 <- ifelse(t12>0.635,'Y','N')
+t12<-predict(model_rf_tune,testSet1[,predictors],type='prob')$Y
+t12 <- ifelse(t12>0.622,'Y','N')
 confusionMatrix(t12,testSet1$Loan_Status,positive = 'Y')
 
 ```
 
+Can infer that:
 
-### Credit History as main variable
+- On setting the threshold as 0.622 instead of 0.5, Specificity increased from 0.58 to 0.66. However, there is fall in accuracy and Sensitivity.
+
+
+
+### Some interesting observations - Credit History as main variable
 
 
 ```{r}
@@ -605,17 +618,67 @@ confusionMatrix(t12,testSet1$Loan_Status,positive = 'Y')
 LoanStat <- ifelse(loan_train1$Loan_Status=='Y',1,0)
 table(Loan_Status=LoanStat)
 table(Credit_History=loan_train1$Credit_History)
-confusionMatrix(loan_train1$Credit_History,LoanStat)
+confusionMatrix(loan_train1$Credit_History,LoanStat,positive = '1')
 
 ```
 
 Can infer that:
 
-- If we simply say credit history of 1(good), approve the loan and credit history of 0(not good) then don't approve the loan, the accuracy of such a inference is 0.7687 which is quite good
+- If we simply say credit history of 1(good), approve the loan and credit history of 0(not good) then don't approve the loan, the accuracy of such a inference is 0.80947 which is quite good but got poor specificty of 0.42
+- This is the main field having very high predictive power.
 
 
+### Testing the "Test data" on the best model
 
+```{r, message=FALSE, warning=FALSE}
 
+# Loading the Test data
 
+loan_test_ori <- read.csv('test_loan.csv',na.strings = c('NA',''))
 
+loan_test <- loan_test_ori
+  
+miss(loan_test)
+cat('\n')
 
+# removing loan_ID
+
+loan_test_Loan_ID <- loan_test[,1]
+loan_test <- loan_test[-1]
+
+# making the variables as factor
+
+loan_test$Credit_History <- as.factor(loan_test$Credit_History)
+loan_test$Loan_Amount_Term <- as.factor(loan_test$Loan_Amount_Term)
+
+# missing values imputation
+
+loan_test <- kNN(loan_test,variable=c('Gender','Dependents','Self_Employed','LoanAmount','Loan_Amount_Term','Credit_History'),k=19,numFun = weightedMean,weightDist=TRUE)
+
+loan_test <- loan_test[-c(12:17)]
+
+cat('\n########After missing values imputation#########\n')
+miss(loan_test)
+cat('\n\n')
+
+# coverting and normalising the data
+
+loan_test[,c(1:5,9,10,11)] <- sapply(loan_test[,c(1:5,9,10,11)], function(x) as.numeric(x))
+
+loan_test[,c(6:9)] <- scale(loan_test[,c(6:9)],center=TRUE,scale=TRUE)
+
+# Now the data is ready for applying best model
+# Predicting using tuned random forest model
+
+loan_test_ori$Loan_Status <- predict(model_rf_tune,loan_test[,predictors])
+
+# The final dataset with loan status updated (Y - approve the loan, N - reject the loan)
+
+table(loan_status=loan_test_ori$Loan_Status)
+
+```
+
+Can infer that:
+
+- Out of the total 367 applicants, the loan can be approved to 305 applicants and can be rejected for 62 cases.
+- The accuracy of this prediction is 83% (model accuracy)
