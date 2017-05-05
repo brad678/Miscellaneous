@@ -116,7 +116,7 @@ plot(revenuests)
 
 Can infer that:
 
-- There is a slow upward rising trend
+- There is a upward rising trend
 - The revenue is rising and falling at regular intervals of time. We can observe seasonal and cyclical patterns in the data.
 
 
@@ -135,7 +135,7 @@ Can infer that:
 
 - Data is divided into seasonal, trend and remainder (unexplained) components
 - Seasonal value is repeating itself every quarter (that is same value every Q1, same value every Q2/Q3/Q4)
-- Trend is increasing mostly and decreasing in between but overall can find a rising trend from 2221 to 4565 millions (trend increased 105% over a period of 10 years from 1999 to 2009)
+- Trend is increasing mostly and decreasing in between but overall can find a rising trend from 2221 to 4565 millions (105% increase over a period of 10 years from 1999 to 2009)
 
 
 ### Plotting the Seasonal trend decompostion
@@ -159,19 +159,64 @@ Can infer following from overall quarterly plot (for all years put together):
 - The revenues in Q3 and Q4 are decreasing off late (in 2009)
 
 
-### Fitting the linear regression model
+### Part I: Fitting the linear regression model
+### Fit a Linear Model with Time Series componenets of Trend and Seasonality
+### use Additive if data set has CONSTANT seasonality Variation
+
 
 ```{r}
-fitlm <- tslm(revenuests ~ trend + season)
-summary(fitlm)
 
+# Additive
+fitlmAdd <- tslm(revenuests ~ trend + season)
+summary(fitlmAdd)
+
+cat('\n\nThe accuracy measures are as follows:\n\n')
+accuracy(fitlmAdd)
+
+```
+
+Can infer that:
+
+- RMSE for the model is 235.2373
+
+
+### Predict using linear Additive model
+
+```{r}
+
+pred.fitlmAdd <- predict(fitlmAdd,n.ahead=8,interval = "prediction")
+pred.fitlmAdd
+
+forecast(fitlmAdd, h=4)
 
 ```
 
 
+
+
+
+
+### Fit a Linear Model with Time Series componenets of Trend and Seasonality
+### Use Multiplicative if data set has INCREASING or DECREASING Seasonality variation. 
+### Multiplicative will become additive if log of data is taken
+
+
+```{r}
+
+#Multiplicative
+fitlmMul <- tslm(revenuests ~ trend * season)
+summary(fitlmMul)
+
+accuracy(fitlmMul)
+
+```
+
+ 
+
 ```{r}
 
 plot(forecast(fitlm, h=4))
+#abline(fit.ex3)
 
 ```
 
