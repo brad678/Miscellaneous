@@ -6,6 +6,7 @@ output:
 ---
 
 ### Project details: 
+http://rcodeeasy.blogspot.sg/2014/06/time-series-models-detailed-explanation.html
 
 #### Domain: Retail
 #### Project: Nike Revenue Forecast
