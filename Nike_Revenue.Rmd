@@ -185,16 +185,25 @@ Can infer that:
 
 ```{r}
 
-pred.fitlmAdd <- predict(fitlmAdd,n.ahead=8,interval = "prediction")
-pred.fitlmAdd
+#prediction
 
-forecast(fitlmAdd, h=4)
+fort.fitlmAdd <- forecast(fitlmAdd, h=4)
+summary(fort.fitlmAdd)
 
 ```
 
+### Plot the graph for linear Additive model
 
+```{r}
+#plot the graph
 
+plot.ts(revenuests,xlim=c(1999,2011),ylim=c(1500,6000)) #plot actual data
+lines(fort.fitlmAdd$fitted,col='green')                 #fit the historical fitted values
+lines(fort.fitlmAdd$mean,col='blue')                    #fit the future predicted values
+lines(fort.fitlmAdd$lower[,2],col='red')                #fit the lower interval
+lines(fort.fitlmAdd$upper[,2],col='red')                #fit the upper interval
 
+```
 
 
 ### Fit a Linear Model with Time Series componenets of Trend and Seasonality
@@ -208,17 +217,42 @@ forecast(fitlmAdd, h=4)
 fitlmMul <- tslm(revenuests ~ trend * season)
 summary(fitlmMul)
 
+cat('\n\nThe accuracy measures are as follows:\n\n')
 accuracy(fitlmMul)
+
 
 ```
 
+Can infer that:
+
+- RMSE for the model is 232.5219
  
+
+### Predict using linear Multiplicative model
 
 ```{r}
 
-plot(forecast(fitlm, h=4))
-#abline(fit.ex3)
+#prediction
+
+fort.fitlmMul <- forecast(fitlmMul, h=4)
+summary(fort.fitlmMul)
 
 ```
+
+
+### Plot the graph for linear Multiplicative model
+
+```{r}
+#plot the graph
+
+plot.ts(revenuests,xlim=c(1999,2011),ylim=c(1500,6000)) #plot actual data
+lines(fort.fitlmMul$fitted,col='green')                 #fit the historical fitted values
+lines(fort.fitlmMul$mean,col='blue')                    #fit the future predicted values
+lines(fort.fitlmMul$lower[,2],col='red')                #fit the lower interval
+lines(fort.fitlmMul$upper[,2],col='red')                #fit the upper interval
+
+```
+
+
 
 
