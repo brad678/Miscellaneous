@@ -6,6 +6,8 @@ output:
 ---
 
 https://github.com/jeknov/movieRec/blob/master/movieRec.R
+https://muffynomster.wordpress.com/2015/06/07/building-a-movie-recommendation-engine-with-r/
+
 
 ### Project details: 
 
@@ -92,6 +94,15 @@ actor_2_facebook_likes(13)
 aspect_ratio(329)
 
 
+### Removing the duplcate movies
+
+```{r}
+
+idx_dup <- which(duplicated(movies$movie_title)==TRUE)
+movies <- movies[-idx_dup,]
+
+
+```
 
 
 ### Finding columns and rows with missing values using function
@@ -111,95 +122,39 @@ miss(movies)
 ```
 
 
-### Content Based collabrative filtering
-
-### Create Unique Genres
-
-```{r}
-
-#create genre list
-
-genre_list <- NULL
-
-genr <- function(a)
-{
-  k <- unlist(strsplit(a,'|',fixed = TRUE))
-  genre_list <- unique(union(k,genre_list))
-  return(genre_list)
-}
-
-genre_list <- genr(movies$genres)
-
-genre_list <- sort(genre_list);genre_list
-
-
-```
-
-### creating genre matrix for all movies
-
+### Removing rows with missing values in budget and gross
+### Missing values in rest of the columns can be replaced with zeros
 
 ```{r}
 
-genre_matrix <- matrix(0,dim(movies)[1],length(genre_list))
+# remove the rows having missing values in budget and gross
+idx <- which(is.na(movies$budget)==TRUE)
+movies <- movies[-idx,]
 
-colnames(genre_matrix) <- genre_list
-
-```
-
-### Building a movie profile
-
-```{r}
-
-
-row1 <<- 1
-
-upd_genr <- function(a)
-{
-  k <- unlist(strsplit(a,'|',fixed = TRUE))
-  for (i in 1: length(k))
-  {
-    col1 <- which(k[i]==colnames(genre_matrix))
-    genre_matrix[row1,col1] <<- 1
-  }
-  row1 <<- row1 + 1
+idx <- which(is.na(movies$gross)==TRUE)
+movies <- movies[-idx,]
  
-}
+# replace with zeros
+movies[is.na(movies)] <- 0
 
-temp <- sapply(movies$genres,upd_genr)
-
-View(head(genre_matrix))
+# checking the missing values
+miss(movies)
+ 
 
 ```
 
-### Binarize the rating to create like/dislike matrix
-### score equal to and above 7 is given value of 1 and below is given value of -1
+Now the dataset is clean and ready
+
+
+### Write into csv file so as to do visualizations in tableau
 
 ```{r}
 
-#m <- matrix(movies$imdb_score)
-#r <- as(m, "realRatingMatrix")
-
-#b <- binarize(r, minRating=6)
-#b
-
-#as(b, "matrix")
-#b
-
-binaryratings <- movies %>%  mutate(imdb_score=ifelse(imdb_score>=7,1,-1))
-table(binaryratings$imdb_score)
-  
-
-```
-
-
-### convert binaryratings matrix to the correct format
-
-```{r}
-binaryratings2 <- dcast(binaryratings,movie_title~imdb_score,fill=0,na.rm=FALSE)
-
+write.csv(movies,'movies_tab.csv')
 
 
 ```
+
 
 
 
