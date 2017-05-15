@@ -1,0 +1,206 @@
+---
+title: "Movie recommendation engine"
+output: 
+  html_document: 
+    smart: no
+---
+
+https://github.com/jeknov/movieRec/blob/master/movieRec.R
+
+### Project details: 
+
+
+#### Domain: Entertainment
+#### Project: IMDB - Recommendation
+#### Data: movie_metadata.csv
+
+#### Description
+- This dataset contains 28 variables for 5043 movies, spanning across 100 years in 66 countries. There are 2399 unique director names, and thousands of actors/actresses. Below are the 28 variables:
+
+movie_title                                          
+color                                                          
+num_critic_for_reviews                                               
+movie_facebook_likes                                                
+duration                                                        
+director_name                                                       
+director_facebook_likes                                                       
+actor_3_name                                                              
+actor_3_facebook_likes                                                      
+actor_2_name                                                                           
+actor_2_facebook_likes                                                                
+actor_1_name                                                                         
+actor_1_facebook_likes                                                        
+gross                                                                
+genres                                                                       
+num_voted_users                                                                  
+cast_total_facebook_likes                                                            
+facenumber_in_poster                                                                  
+plot_keywords                                                                   
+movie_imdb_link                                                                 
+num_user_for_reviews                                                          
+language                                                                  
+country                                                                  
+content_rating                                                               
+budget                                                                                 
+title_year                                                                      
+imdb_score                                                                          
+aspect_ratio                                                                
+
+#### Objective
+- Given that thousands of movies were produced each year, is there a better way for us to tell the greatness of movie without relying on critics or our own instincts? And try to create a recommendation engine with this dataset.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+### Loading required packages
+
+```{r}
+
+library(tidyr)
+library(dplyr)
+library(reshape2)
+
+```
+
+
+### Loading the data
+
+```{r}
+
+movies <- read.csv('movie_metadata.csv',stringsAsFactors=FALSE)
+glimpse(movies)
+summary(movies)
+
+```
+
+The missing values are present in:
+
+num_critic_for_reviews(50)
+duration(15)
+director_facebbok_likes(104)
+actor_3_facebook_likes(23)
+actor_1_facebook_likes(7)
+gross(884)
+facenumber_in_poster(13)
+num_user_for_reviews(21)
+budget(492)
+title_year(108)
+actor_2_facebook_likes(13)
+aspect_ratio(329)
+
+
+
+
+### Finding columns and rows with missing values using function
+```{r}
+miss <- function(x) {
+ cat('\nThe columns having missing values are:')
+ for(i in 1:ncol(x)) {
+  if(length(x[i][is.na(x[i])]) > 0) {
+    cat('\n',names(x[i]),':',length(x[i][is.na(x[i])]))
+  }
+ } 
+  cat('\n\nThe number of rows with missing values are:',nrow(x)-nrow(na.omit(x)))
+  cat('\nThe proportion of missing values is:',signif((nrow(x)-nrow(na.omit(x)))/nrow(x),2))
+}
+
+miss(movies)
+```
+
+
+### Content Based collabrative filtering
+
+### Create Unique Genres
+
+```{r}
+
+#create genre list
+
+genre_list <- NULL
+
+genr <- function(a)
+{
+  k <- unlist(strsplit(a,'|',fixed = TRUE))
+  genre_list <- unique(union(k,genre_list))
+  return(genre_list)
+}
+
+genre_list <- genr(movies$genres)
+
+genre_list <- sort(genre_list);genre_list
+
+
+```
+
+### creating genre matrix for all movies
+
+
+```{r}
+
+genre_matrix <- matrix(0,dim(movies)[1],length(genre_list))
+
+colnames(genre_matrix) <- genre_list
+
+```
+
+### Building a movie profile
+
+```{r}
+
+
+row1 <<- 1
+
+upd_genr <- function(a)
+{
+  k <- unlist(strsplit(a,'|',fixed = TRUE))
+  for (i in 1: length(k))
+  {
+    col1 <- which(k[i]==colnames(genre_matrix))
+    genre_matrix[row1,col1] <<- 1
+  }
+  row1 <<- row1 + 1
+ 
+}
+
+temp <- sapply(movies$genres,upd_genr)
+
+View(head(genre_matrix))
+
+```
+
+### Binarize the rating to create like/dislike matrix
+### score equal to and above 7 is given value of 1 and below is given value of -1
+
+```{r}
+
+#m <- matrix(movies$imdb_score)
+#r <- as(m, "realRatingMatrix")
+
+#b <- binarize(r, minRating=6)
+#b
+
+#as(b, "matrix")
+#b
+
+binaryratings <- movies %>%  mutate(imdb_score=ifelse(imdb_score>=7,1,-1))
+table(binaryratings$imdb_score)
+  
+
+```
+
+
+### convert binaryratings matrix to the correct format
+
+```{r}
+binaryratings2 <- dcast(binaryratings,movie_title~imdb_score,fill=0,na.rm=FALSE)
+
+
+
+```
+
+
+
+
