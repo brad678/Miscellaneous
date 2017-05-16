@@ -7,6 +7,7 @@ output:
 
 https://github.com/jeknov/movieRec/blob/master/movieRec.R
 https://muffynomster.wordpress.com/2015/06/07/building-a-movie-recommendation-engine-with-r/
+https://www.analyticsvidhya.com/blog/2016/03/practical-guide-principal-component-analysis-python/
 
 
 ### Project details: 
@@ -167,16 +168,68 @@ Can infer the following from plots:
 - As the "movie facebook likes" increases, the score also increases. There are few outliers too like for instance "Interstellar" got the maximum likes(>350k) but score is only 8.6 where as "Godfather" got less than 50k likes but its score is 9.2
 - There is positive relationship between "cast total FB likes" and Imdb score, however its not as strong as that of "movie facebook likes"
 - As the duration of movie increases, the score also increases
-- Generally speaking as the score of movie increases, the gross also increases. However the budgets for high gross earning movies is also high. For instance, movie like Avator which made whopping gross had profit % of 69 where as Twilight made on comparitively less budget made profit % of 83
+- Generally speaking as the score of movie increases, the gross also increases. However the budgets for high gross earning movies is also high. For instance, movie like Avator which made whopping gross had gross profit margin of 69% where as Twilight made on comparitively less budget made gross profit margin of 83%
 - The most succesful director(with min. 10 movies) with high scores is David Fincher, followed by steven spielberg and Martin Scorsese
 
 
-
+### Principal component analysis (PCA)
 
 
 ```{r}
 
+#remove the dependent and identifier variables
+my_data <- subset(movies, select = -c(imdb_score,genres,plot_keywords,movie_imdb_link))
+
+#check variable class
+str(my_data)
+
+#load library
+#install.packages('dummies')
+library(dummies)
+
+#create a dummy data frame
+new_my_data <- dummy.data.frame(my_data, names = c("color","director_name",
+                                "actor_2_name","actor_1_name",
+                                "movie_title","actor_3_name",
+                                "language","country",
+                                "content_rating"))
+
+#divide the new data
+
+idx <- sample(nrow(new_my_data),size=round(nrow(new_my_data)*0.7))
+
+pca.train <- new_my_data[idx,]
+pca.test <- new_my_data[-idx,]
+
+#do scaling
+
+pca.train <- scale(pca.train, center = TRUE, scale = TRUE)
+pca.test <- scale(pca.test, center = TRUE, scale = TRUE)
+
+#PCA
+
+prin_comp <- prcomp(pca.train,scale. = FALSE)
+prin_comp
 
 ```
+
+
+
+```{r}
+biplot(prin_comp,scale=0)
+
+std_dev <- prin_comp$sdev
+pr_var <- std_dev^2
+
+prop_var <- pr_var/sum(pr_var)
+
+plot(prop_var,type='b',xlab = 'Number of Principal Components',ylab='Proportion of variance explained')
+
+plot(cumsum(prop_var),type='b',xlab = 'Number of Principal Components',ylab='Cummulative Proportion of variance explained')
+
+summary(prin_comp)
+
+```
+
 
 
