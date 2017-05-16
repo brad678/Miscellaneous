@@ -64,6 +64,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyr)
 library(dplyr)
 library(reshape2)
+library(ggplot2)
 
 ```
 
@@ -156,6 +157,26 @@ write.csv(movies,'movies_tab.csv')
 ```
 
 
+Can infer the following from plots:
 
+- Majority of the scores are in range of 6-8
+- Countries like China, Hong kong, India, Italy, Japan, Mexico, Spain, UK have produced the average score of above 7 (min. count of movies is 10)
+- UK produced lots of movies (313) with average Imdb score of 7
+- US produced largest number of movies(2993), however their average imdb score is 6.5
+- We can find that over the years(spcifically after 1975) the quality of movies(as per score) has come down. This might be partly due to the fact that large number of movies are being made.
+- As the "movie facebook likes" increases, the score also increases. There are few outliers too like for instance "Interstellar" got the maximum likes(>350k) but score is only 8.6 where as "Godfather" got less than 50k likes but its score is 9.2
+- There is positive relationship between "cast total FB likes" and Imdb score, however its not as strong as that of "movie facebook likes"
+- As the duration of movie increases, the score also increases
+- Generally speaking as the score of movie increases, the gross also increases. However the budgets for high gross earning movies is also high. For instance, movie like Avator which made whopping gross had profit % of 69 where as Twilight made on comparitively less budget made profit % of 83
+- The most succesful director(with min. 10 movies) with high scores is David Fincher, followed by steven spielberg and Martin Scorsese
+
+
+
+
+
+```{r}
+
+
+```
 
 
