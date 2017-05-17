@@ -8,6 +8,7 @@ output:
 https://github.com/jeknov/movieRec/blob/master/movieRec.R
 https://muffynomster.wordpress.com/2015/06/07/building-a-movie-recommendation-engine-with-r/
 https://www.analyticsvidhya.com/blog/2016/03/practical-guide-principal-component-analysis-python/
+http://blog.nycdatascience.com/student-works/machine-learning/movie-rating-prediction/
 
 
 ### Project details: 
