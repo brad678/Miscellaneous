@@ -150,6 +150,9 @@ Now the dataset is clean and ready
 
 
 ### Write into csv file so as to do visualizations in tableau
+### check the Visualizations here:
+
+https://public.tableau.com/profile/bharadwaj.tadikonda#!/vizhome/Imdb_recommendation/ImdbscorevsNumvotedUsers
 
 ```{r}
 
@@ -162,72 +165,132 @@ write.csv(movies,'movies_tab.csv')
 Can infer the following from plots:
 
 - Majority of the scores are in range of 6-8
+
 - Countries like China, Hong kong, India, Italy, Japan, Mexico, Spain, UK have produced the average score of above 7 (min. count of movies is 10)
+
 - UK produced lots of movies (313) with average Imdb score of 7
+
 - US produced largest number of movies(2993), however their average imdb score is 6.5
+
 - We can find that over the years(spcifically after 1975) the quality of movies(as per score) has come down. This might be partly due to the fact that large number of movies are being made.
+
 - As the "movie facebook likes" increases, the score also increases. There are few outliers too like for instance "Interstellar" got the maximum likes(>350k) but score is only 8.6 where as "Godfather" got less than 50k likes but its score is 9.2
+
 - There is positive relationship between "cast total FB likes" and Imdb score, however its not as strong as that of "movie facebook likes"
+
 - As the duration of movie increases, the score also increases
-- Generally speaking as the score of movie increases, the gross also increases. However the budgets for high gross earning movies is also high. 
-For instance, movie like "Avatar" which made whopping gross had gross profit margin of 69% where as "A separation" made on comparitively less budget made gross profit margin of 93%
+
+- Generally speaking as the score of movie increases, the gross also increases. However the budgets for high gross earning movies is also high. For instance, movie like "Avatar" which made whopping gross had gross profit margin of 69% where as "A separation" made on comparitively less budget made gross profit margin of 93%
+
 - The most succesful director(with min. 10 movies) is steven spielberg (both in terms of score and gross profit margin %)
+
 - The Top actor score wise(with min. 10 movies) are Tom hanks, Leonardo Dicaprio and Clint Eastwood
+
 - The Top actor-director combination(with min. 3 movies together) are Christain Bale-Christopher Nolan, Robert De Niro -Martin Scorsese, Leonardo Dicaprio -Martin Scorsese, Michael Biehn-James Cameron, Michael Moore-Michael Moore.
+
 - More the "Num Voted users", better is the score. The movie with highest votes is "The shawshank Redemption"(9.3), followed by "The Dark Knight"(9) and "Inception"(8.8)
 
 
+### Correlation analysis
 
 ```{r}
 
 library(corrplot)
 x <- cor(movies[,unlist(lapply(movies, is.numeric))])
-x
+
 #corrplot(x,method='number',number.cex=0.75,col='blue')
 corrplot(x,method='number',col='black',cl.pos = "n",number.cex=0.75)
+
+xdf <- as.data.frame(as.table(x))
+xdf <- xdf %>% filter(abs(Freq) > 0.5 & Freq != 1) %>% arrange(desc(Freq))
+ 
+View(xdf)
 
 ```
 
 Can infer that:
 
-- The "imdb_score" has positive correlation with "num_voted_users". More the voted users, movies tend to have high rating.
+<For imdb score>
+
+- The "imdb_score" has positive correlation with "num_voted_users". More the voted users, movies tend to have high rating. 
+
 - The "imdb_score" has small but positive correlation with "duration". Long movies tend to have high rating.
+
 - The "imdb_score" has very small but positive correlation with the "director_facebook_likes", meaning a popular director does not necessarily mean his directed movie is great.
-- The "imdb_score" has very small but positive correlation with the "actor_1_facebook_likes", meaning that an actor is popular in social network does not mean that a movie is high rating if he is the leading actor. 
+
+- The "imdb_score" has very small but positive correlation with the "actor_1_facebook_likes", meaning that an leading actor is popular in 
+social network does not mean that a movie is high rating
+
+- The "imdb_score" has small but negative correlation with "facenumber_in_poster". It is perhaps not a good idea to have many faces in movie poster if a movie wants to be great.
+
+- The "imdb_score" has almost no correlation with "budget". Throwing money at a movie will not necessarily make it great.
+
+<For others>
+
+-The "cast_total_facebook_likes" has a strong positive correlation with the "actor_1_facebook_likes", and has smaller positive correlation with both "actor_2_facebook_likes" and "actor_3_facebook_likes"
+
+- The "num_user_for_reviews" & "num_critic_for_reviews"" has strong positive correlation with the "num_voted_users", meaning the users who write reviews and are critics also vote for the movie
+
+- The "movie_facebook_likes" has strong correlation with "num_critic_for_reviews", meaning that the popularity of a movie in social network can be largely affected by the critics
+
+- The movie "gross" has strong positive correlation with the "num_voted_users"
+
+- The "movie_facebook_likes" has relatively large correlation with the "num_voted_users"
+
+### Correlation implies linear relationship. Let's validate it through scatter plot
+### Multicollinearity should not exist for linear regression
+
+```{r}
+ggplot(movies,aes(actor_1_facebook_likes,cast_total_facebook_likes))+geom_point()+geom_smooth(method = 'lm')
+ggplot(movies,aes(num_user_for_reviews,num_voted_users))+geom_point()+geom_smooth(method = 'lm')
+ggplot(movies,aes(movie_facebook_likes,num_critic_for_reviews))+geom_point()+geom_smooth(method = 'lm')
+ggplot(movies,aes(num_voted_users,gross))+geom_point()+geom_smooth(method = 'lm')
+
+
+```
 
 
 
-
-
-The "imdb_score" has small but negative correlation with "facenumber_in_poster". It is perhaps not a good idea to have many faces in movie poster if a movie wants to be great.
-The "imdb_score" has almost no correlation with "budget". Throwing money at a movie will not necessarily make it great.
-
-
-
-
-
-
-
-
-The "cast_total_facebook_likes" has a strong positive correlation with the "actor_1_facebook_likes", and has smaller positive correlation with both "actor_2_facebook_likes" and "actor_3_facebook_likes"
-The "movie_facebook_likes" has strong correlation with "num_critic_for_reviews", meaning that the popularity of a movie in social network can be largely affected by the critics
-The "movie_facebook_likes" has relatively large correlation with the "num_voted_users"
-The movie "gross" has strong positive correlation with the "num_voted_users"
-Surprisingly, there are some pairwise correlations that are perhaps counter-intuitive:
-
-
-
-
-### Principal component analysis (PCA)
+### Selecting the variables for linear regression
 
 
 ```{r}
 
-#remove the dependent and identifier variables
-my_data <- subset(movies, select = -c(imdb_score,genres,plot_keywords,movie_imdb_link,actor_3_name))
+#remove variables that correspond to post release
+  #num_critic_for_reviews 
+  #gross
+  #num_voted_users
+  #num_user_for_reviews
+  #movie_facebook_likes
 
-#check variable class
-str(my_data)
+#remove variables having high collinearity
+  #cast_total_facebook_likes
+  
+#remove other variables 
+  #genres
+  #plot_keywords
+  #movie_imdb_link
+  #director_name
+  #actor_1_name
+  #actor_2_name
+  #actor_3_name
+  #movie_title
+  #country
+
+```
+
+
+
+```{r}
+
+movies_l <- movies %>% select(-c(num_critic_for_reviews, gross, num_voted_users, num_user_for_reviews, movie_facebook_likes, cast_total_facebook_likes, genres, plot_keywords, movie_imdb_link,director_name,actor_1_name,actor_2_name,actor_3_name,movie_title,country,aspect_ratio))
+
+lm_model <- lm(imdb_score ~ .,data=movies_l)
+
+summary(lm_model)
+
+```
+
 
 #load library
 #install.packages('dummies')
@@ -259,23 +322,39 @@ pca.train <- pca.train[,-idx]
 #pca.train <- scale(pca.train, center = TRUE, scale = TRUE)
 #pca.test <- scale(pca.test, center = TRUE, scale = TRUE)
 
+
+
+### Dimensionality reduction (PCA)
+
+
+```{r}
+
+#remove the dependent and identifier variables
+my_data <- subset(movies, select = -c(color, director_name, actor_2_name, genres, actor_1_name, movie_title, actor_3_name, plot_keywords, movie_imdb_link, language, country, content_rating, imdb_score))
+
+#check variable class
+str(my_data)
+
 #PCA
 
-prin_comp <- prcomp(pca.train,scale. = TRUE)
-#prin_comp
+prin_comp <- prcomp(my_data,scale. = TRUE)
+prin_comp
 
 ```
 
 
 
 ```{r}
-#biplot(prin_comp,scale=0)
+
+#plotting biplot
+biplot(prin_comp,scale=0)
 
 std_dev <- prin_comp$sdev
 pr_var <- std_dev^2
 
 prop_var <- pr_var/sum(pr_var)
 
+#plotting explanation of variance in data
 plot(prop_var,type='b',xlab = 'Number of Principal Components',ylab='Proportion of variance explained')
 
 plot(cumsum(prop_var),type='b',xlab = 'Number of Principal Components',ylab='Cummulative Proportion of variance explained')
@@ -283,5 +362,25 @@ plot(cumsum(prop_var),type='b',xlab = 'Number of Principal Components',ylab='Cum
 summary(prin_comp)
 
 ```
+
+Can infer that:
+
+
+- The variance in data(more than 90% variance) is explained by 10 components out of 15 components.
+
+```{r}
+
+
+
+
+X.quali <- subset(movies, select = c(color, director_name, actor_2_name, genres, actor_1_name, movie_title, actor_3_name, plot_keywords, movie_imdb_link, language, country, content_rating))
+
+X.quanti <- subset(movies, select = -c(color, director_name, actor_2_name, genres, actor_1_name, movie_title, actor_3_name, plot_keywords, movie_imdb_link, language, country, content_rating, imdb_score))
+ 
+PCAmix(X.quanti, X.quali,rename.level=TRUE)
+
+```
+
+
 
 
