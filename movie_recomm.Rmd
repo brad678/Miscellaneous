@@ -82,18 +82,18 @@ summary(movies)
 
 The missing values are present in:
 
-num_critic_for_reviews(50)
-duration(15)
-director_facebbok_likes(104)
-actor_3_facebook_likes(23)
-actor_1_facebook_likes(7)
-gross(884)
-facenumber_in_poster(13)
-num_user_for_reviews(21)
-budget(492)
-title_year(108)
-actor_2_facebook_likes(13)
-aspect_ratio(329)
+num_critic_for_reviews(50)                                
+duration(15)                                      
+director_facebbok_likes(104)                       
+actor_3_facebook_likes(23)                       
+actor_1_facebook_likes(7)                             
+gross(884)                               
+facenumber_in_poster(13)                              
+num_user_for_reviews(21)                               
+budget(492)                                        
+title_year(108)                                          
+actor_2_facebook_likes(13)                          
+aspect_ratio(329)                                     
 
 
 ### Removing the duplcate movies
@@ -168,8 +168,53 @@ Can infer the following from plots:
 - As the "movie facebook likes" increases, the score also increases. There are few outliers too like for instance "Interstellar" got the maximum likes(>350k) but score is only 8.6 where as "Godfather" got less than 50k likes but its score is 9.2
 - There is positive relationship between "cast total FB likes" and Imdb score, however its not as strong as that of "movie facebook likes"
 - As the duration of movie increases, the score also increases
-- Generally speaking as the score of movie increases, the gross also increases. However the budgets for high gross earning movies is also high. For instance, movie like Avator which made whopping gross had gross profit margin of 69% where as Twilight made on comparitively less budget made gross profit margin of 83%
-- The most succesful director(with min. 10 movies) with high scores is David Fincher, followed by steven spielberg and Martin Scorsese
+- Generally speaking as the score of movie increases, the gross also increases. However the budgets for high gross earning movies is also high. 
+For instance, movie like "Avatar" which made whopping gross had gross profit margin of 69% where as "A separation" made on comparitively less budget made gross profit margin of 93%
+- The most succesful director(with min. 10 movies) is steven spielberg (both in terms of score and gross profit margin %)
+- The Top actor score wise(with min. 10 movies) are Tom hanks, Leonardo Dicaprio and Clint Eastwood
+- The Top actor-director combination(with min. 3 movies together) are Christain Bale-Christopher Nolan, Robert De Niro -Martin Scorsese, Leonardo Dicaprio -Martin Scorsese, Michael Biehn-James Cameron, Michael Moore-Michael Moore.
+- More the "Num Voted users", better is the score. The movie with highest votes is "The shawshank Redemption"(9.3), followed by "The Dark Knight"(9) and "Inception"(8.8)
+
+
+
+```{r}
+
+library(corrplot)
+x <- cor(movies[,unlist(lapply(movies, is.numeric))])
+x
+#corrplot(x,method='number',number.cex=0.75,col='blue')
+corrplot(x,method='number',col='black',cl.pos = "n",number.cex=0.75)
+
+```
+
+Can infer that:
+
+- The "imdb_score" has positive correlation with "num_voted_users". More the voted users, movies tend to have high rating.
+- The "imdb_score" has small but positive correlation with "duration". Long movies tend to have high rating.
+- The "imdb_score" has very small but positive correlation with the "director_facebook_likes", meaning a popular director does not necessarily mean his directed movie is great.
+- The "imdb_score" has very small but positive correlation with the "actor_1_facebook_likes", meaning that an actor is popular in social network does not mean that a movie is high rating if he is the leading actor. 
+
+
+
+
+
+The "imdb_score" has small but negative correlation with "facenumber_in_poster". It is perhaps not a good idea to have many faces in movie poster if a movie wants to be great.
+The "imdb_score" has almost no correlation with "budget". Throwing money at a movie will not necessarily make it great.
+
+
+
+
+
+
+
+
+The "cast_total_facebook_likes" has a strong positive correlation with the "actor_1_facebook_likes", and has smaller positive correlation with both "actor_2_facebook_likes" and "actor_3_facebook_likes"
+The "movie_facebook_likes" has strong correlation with "num_critic_for_reviews", meaning that the popularity of a movie in social network can be largely affected by the critics
+The "movie_facebook_likes" has relatively large correlation with the "num_voted_users"
+The movie "gross" has strong positive correlation with the "num_voted_users"
+Surprisingly, there are some pairwise correlations that are perhaps counter-intuitive:
+
+
 
 
 ### Principal component analysis (PCA)
@@ -178,7 +223,7 @@ Can infer the following from plots:
 ```{r}
 
 #remove the dependent and identifier variables
-my_data <- subset(movies, select = -c(imdb_score,genres,plot_keywords,movie_imdb_link))
+my_data <- subset(movies, select = -c(imdb_score,genres,plot_keywords,movie_imdb_link,actor_3_name))
 
 #check variable class
 str(my_data)
@@ -188,11 +233,14 @@ str(my_data)
 library(dummies)
 
 #create a dummy data frame
-new_my_data <- dummy.data.frame(my_data, names = c("color","director_name",
+new_my_data <- dummy.data.frame(my_data, names = c("color",
                                 "actor_2_name","actor_1_name",
-                                "movie_title","actor_3_name",
+                                "movie_title","director_name",
                                 "language","country",
                                 "content_rating"))
+
+#new_my_data <- new_my_data[ , apply(new_my_data, 2, var) != 0]
+#new_my_data <- new_my_data[ , apply(new_my_data, 2, function(x) min(x)!=max(x))]
 
 #divide the new data
 
@@ -201,22 +249,26 @@ idx <- sample(nrow(new_my_data),size=round(nrow(new_my_data)*0.7))
 pca.train <- new_my_data[idx,]
 pca.test <- new_my_data[-idx,]
 
+idx <- which(apply(pca.train, 2, var)==0)
+
+pca.train <- pca.train[,-idx]
+
 #do scaling
 
-pca.train <- scale(pca.train, center = TRUE, scale = TRUE)
-pca.test <- scale(pca.test, center = TRUE, scale = TRUE)
+#pca.train <- scale(pca.train, center = TRUE, scale = TRUE)
+#pca.test <- scale(pca.test, center = TRUE, scale = TRUE)
 
 #PCA
 
-prin_comp <- prcomp(pca.train,scale. = FALSE)
-prin_comp
+prin_comp <- prcomp(pca.train,scale. = TRUE)
+#prin_comp
 
 ```
 
 
 
 ```{r}
-biplot(prin_comp,scale=0)
+#biplot(prin_comp,scale=0)
 
 std_dev <- prin_comp$sdev
 pr_var <- std_dev^2
@@ -230,6 +282,5 @@ plot(cumsum(prop_var),type='b',xlab = 'Number of Principal Components',ylab='Cum
 summary(prin_comp)
 
 ```
-
 
 
