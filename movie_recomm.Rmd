@@ -329,6 +329,35 @@ outcome <- "imdb_score"
 ```
 
 
+### Initializing the results table
+
+```{r}
+
+prediction <- data.frame()
+
+```
+
+### Creating error measures(RMSE, Rsquared) to validate the model
+### RMSE    : Root Mean squared Error. It tells the error in prediction
+### Rsquared: It tells the poportion of variance explained by the model
+
+```{r}
+
+Error_measures <- function(actual,predicted)
+{
+  SSE <- sum((actual-predicted)^2)
+  SST <- sum((actual-mean(actual))^2)
+  
+  R2 <<- 1-(SSE/SST)
+  
+  error <- actual-predicted
+  RMSE <<- sqrt(mean(error^2))
+}
+
+```
+
+
+
 ### Linear Regression Training
 
 
@@ -338,7 +367,8 @@ set.seed(101)
 model_lm <- train(movies_train1[,predictors],
                   movies_train1[,outcome],
                   method = 'lm',
-                  #preProcess = 'scale',
+                  #preProcess = c('center','scale'),
+                  tuneLength = 9,
                   trControl = fitcontrol)
 
 model_lm
@@ -348,14 +378,14 @@ model_lm
 ```
 
 
-### Linear Regression Assumptions
+### Validating Linear Regression Assumptions
 
 ```{r}
 
 #Linearity & Homoscedasticity
 
 residuals <- model_lm$pred[,'obs']-model_lm$pred[,'pred']
-plot(model_lm$pred[,'pred'],residuals)
+plot(model_lm$pred[,'pred'],residuals,xlab='Fitted values',main="Fitted vs Residuals")
 
 #Normality
 
@@ -363,23 +393,17 @@ qqnorm(residuals)
 qqline(residuals)
 
 #Multicollinearity
-  #already high collinearity variables are removed
+library(car)
+vif(model_lm$finalModel)
 
 ```
 
 Can infer that:
 
 - Linearity & homoscedasticity exists(though not perfect)
-- Normality exists
-- Multicollinear variables are removed
-
-
-```{r}
-
-prediction <- data.frame()
-
-```
-
+- Normality exists(though slight deviation)
+- VIF<=4, so we can say multicollinearity doesnot exist between the predictor variables
+- Since all these assumptions hold good, we can proceed with linear regression model
 
 
 ### Linear Regression Validation
@@ -387,14 +411,13 @@ prediction <- data.frame()
 
 ```{r}
 
+#prediction
 predict_model_lm <- predict(model_lm,movies_test1[,predictors])
 
-SSE <- sum((movies_test1$imdb_score-predict_model_lm)^2)
-SST <- sum((movies_test1$imdb_score-mean(movies_test1$imdb_score))^2)
+#calculating error measures
+Error_measures(movies_test1$imdb_score,predict_model_lm)
 
-R2 <- 1-(SSE/SST)
-RMSE <- sqrt(SSE/length(predict_model_lm))
-
+#Building the result into table
 prediction <<- prediction[-1,]
 temp1 <- data.frame(RMSE=RMSE,Rsquared=R2)
 prediction <<- rbind(prediction, lin_reg=temp1 )
@@ -414,7 +437,8 @@ set.seed(101)
 model_rpart <- train(movies_train1[,predictors],
                   movies_train1[,outcome],
                   method = 'rpart',
-                  #preProcess = 'scale',
+                  #preProcess = c('center','scale'),
+                  tuneLength = 9,
                   trControl = fitcontrol)
 
 model_rpart
@@ -426,19 +450,21 @@ model_rpart
 
 ```{r}
 
+#prediction
 predict_model_rpart <- predict(model_rpart,movies_test1[,predictors])
 
-SSE <- sum((movies_test1$imdb_score-predict_model_rpart)^2)
-SST <- sum((movies_test1$imdb_score-mean(movies_test1$imdb_score))^2)
+#calculating error measures
+Error_measures(movies_test1$imdb_score,predict_model_rpart)
 
-R2 <- 1-(SSE/SST)
-RMSE <- sqrt(SSE/length(predict_model_rpart))
-
+#Building the result into table
 prediction <<- prediction[-2,]
 temp1 <- data.frame(RMSE=RMSE,Rsquared=R2)
 prediction <<- rbind(prediction, decision_tree=temp1 )
 prediction['decision_tree',]
 
+#plot the tree
+plot(model_rpart$finalModel)
+text(model_rpart$finalModel)
 
 ```
 
@@ -452,6 +478,8 @@ model_rf <- train(movies_train1[,predictors],
                   movies_train1[,outcome],
                   method = 'rf',
                   #preProcess = 'scale',
+                  importance = TRUE,
+                  tuneLength = 7,
                   trControl = fitcontrol)
 
 model_rf
@@ -463,19 +491,55 @@ model_rf
 
 ```{r}
 
+#prediction
 predict_model_rf <- predict(model_rf,movies_test1[,predictors])
 
-SSE <- sum((movies_test1$imdb_score-predict_model_rf)^2)
-SST <- sum((movies_test1$imdb_score-mean(movies_test1$imdb_score))^2)
+#calculating error measures
+Error_measures(movies_test1$imdb_score,predict_model_rf)
 
-R2 <- 1-(SSE/SST)
-RMSE <- sqrt(SSE/length(predict_model_rf))
-
+#Building the result into table
 prediction <<- prediction[-3,]
 temp1 <- data.frame(RMSE=RMSE,Rsquared=R2)
 prediction <<- rbind(prediction, random_forest=temp1 )
 prediction['random_forest',]
 
+```
 
+### Plot the error in random forest model
+
+```{r}
+
+#plot the error
+plot(model_rf$finalModel)
 
 ```
+
+Can infer that:
+
+- Initially there is lot of volatility but the curve stabilizes after aound 50 trees 
+
+### Variable importance
+
+
+```{r}
+
+
+#check the variables important to the model
+
+#varImp(model_rf$finalModel)
+varImpPlot(model_rf$finalModel,main="Variable Importance")
+
+```
+
+Can infer that:
+
+- The most important factor affecting movie rating is duration. The longer the movie, the better is the rating
+- Budget is also important, although we have seen earlier that budget has got very less correlation with rating
+- Facebook popularity of director is very important to the rating.
+- Facebook popularity of Top 3 actors also effects the rating.
+- Title year also has little impact on the rating.
+- Facenumber in poster is having very less effect on the rating
+
+
+
+
