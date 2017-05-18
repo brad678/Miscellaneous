@@ -279,108 +279,203 @@ ggplot(movies,aes(num_voted_users,gross))+geom_point()+geom_smooth(method = 'lm'
 
 ```
 
+### Split the data into train and test
 
 
 ```{r}
 
-movies_l <- movies %>% select(-c(num_critic_for_reviews, gross, num_voted_users, num_user_for_reviews, movie_facebook_likes, cast_total_facebook_likes, genres, plot_keywords, movie_imdb_link,director_name,actor_1_name,actor_2_name,actor_3_name,movie_title,country,aspect_ratio))
+# removing the variables 
 
-lm_model <- lm(imdb_score ~ .,data=movies_l)
-
-summary(lm_model)
-
-```
-
-
-#load library
-#install.packages('dummies')
-library(dummies)
-
-#create a dummy data frame
-new_my_data <- dummy.data.frame(my_data, names = c("color",
-                                "actor_2_name","actor_1_name",
-                                "movie_title","director_name",
-                                "language","country",
-                                "content_rating"))
-
-#new_my_data <- new_my_data[ , apply(new_my_data, 2, var) != 0]
-#new_my_data <- new_my_data[ , apply(new_my_data, 2, function(x) min(x)!=max(x))]
+#movies_sub <- movies %>% select(-c(num_critic_for_reviews, gross, num_voted_users, num_user_for_reviews, movie_facebook_likes, cast_total_facebook_likes, genres, plot_keywords, movie_imdb_link,director_name,actor_1_name,actor_2_name,actor_3_name,movie_title,country,aspect_ratio))
 
 #divide the new data
 
-idx <- sample(nrow(new_my_data),size=round(nrow(new_my_data)*0.7))
+library(caret)
 
-pca.train <- new_my_data[idx,]
-pca.test <- new_my_data[-idx,]
+set.seed(100)
+idx <- createDataPartition(movies$imdb_score,p=0.7,list = FALSE)
 
-idx <- which(apply(pca.train, 2, var)==0)
+movies_train <- movies[idx,]
+movies_test <- movies[-idx,]
 
-pca.train <- pca.train[,-idx]
+#standardise the data
+movies_train1 <- movies_train
+movies_test1 <- movies_test
 
-#do scaling
+movies_train1[,c(3:6,8:9,13:14,19,23,25,28)] <- scale(movies_train1[,c(3:6,8:9,13:14,19,23,25,28)], center = TRUE, scale = TRUE)
 
-#pca.train <- scale(pca.train, center = TRUE, scale = TRUE)
-#pca.test <- scale(pca.test, center = TRUE, scale = TRUE)
-
-
-
-### Dimensionality reduction (PCA)
-
-
-```{r}
-
-#remove the dependent and identifier variables
-my_data <- subset(movies, select = -c(color, director_name, actor_2_name, genres, actor_1_name, movie_title, actor_3_name, plot_keywords, movie_imdb_link, language, country, content_rating, imdb_score))
-
-#check variable class
-str(my_data)
-
-#PCA
-
-prin_comp <- prcomp(my_data,scale. = TRUE)
-prin_comp
+movies_test1[,c(3:6,8:9,13:14,19,23,25,28)] <- scale(movies_test1[,c(3:6,8:9,13:14,19,23,25,28)], center = TRUE, scale = TRUE)
 
 ```
 
 
+### Defining parameters
 
 ```{r}
 
-#plotting biplot
-biplot(prin_comp,scale=0)
+#Define the training control
 
-std_dev <- prin_comp$sdev
-pr_var <- std_dev^2
+fitcontrol <- trainControl(method="cv",number=10,savePredictions='final')
+#fitcontrol <- trainControl(savePredictions='final')
 
-prop_var <- pr_var/sum(pr_var)
+#Defind predictors and outcome
 
-#plotting explanation of variance in data
-plot(prop_var,type='b',xlab = 'Number of Principal Components',ylab='Proportion of variance explained')
+#predictors <- c("duration","director_facebook_likes","actor_3_facebook_likes","actor_1_facebook_likes","facenumber_in_poster","content_rating","budget","title_year","actor_2_facebook_likes","language","color")
+predictors <- c("duration","director_facebook_likes","actor_3_facebook_likes","actor_1_facebook_likes","facenumber_in_poster","budget","title_year","actor_2_facebook_likes")
 
-plot(cumsum(prop_var),type='b',xlab = 'Number of Principal Components',ylab='Cummulative Proportion of variance explained')
 
-summary(prin_comp)
+outcome <- "imdb_score"
+
+```
+
+
+### Linear Regression Training
+
+
+```{r}
+
+set.seed(101)
+model_lm <- train(movies_train1[,predictors],
+                  movies_train1[,outcome],
+                  method = 'lm',
+                  #preProcess = 'scale',
+                  trControl = fitcontrol)
+
+model_lm
+
+
+
+```
+
+
+### Linear Regression Assumptions
+
+```{r}
+
+#Linearity & Homoscedasticity
+
+residuals <- model_lm$pred[,'obs']-model_lm$pred[,'pred']
+plot(model_lm$pred[,'pred'],residuals)
+
+#Normality
+
+qqnorm(residuals)
+qqline(residuals)
+
+#Multicollinearity
+  #already high collinearity variables are removed
 
 ```
 
 Can infer that:
 
+- Linearity & homoscedasticity exists(though not perfect)
+- Normality exists
+- Multicollinear variables are removed
 
-- The variance in data(more than 90% variance) is explained by 10 components out of 15 components.
 
 ```{r}
 
+prediction <- data.frame()
+
+```
 
 
 
-X.quali <- subset(movies, select = c(color, director_name, actor_2_name, genres, actor_1_name, movie_title, actor_3_name, plot_keywords, movie_imdb_link, language, country, content_rating))
+### Linear Regression Validation
 
-X.quanti <- subset(movies, select = -c(color, director_name, actor_2_name, genres, actor_1_name, movie_title, actor_3_name, plot_keywords, movie_imdb_link, language, country, content_rating, imdb_score))
- 
-PCAmix(X.quanti, X.quali,rename.level=TRUE)
+
+```{r}
+
+predict_model_lm <- predict(model_lm,movies_test1[,predictors])
+
+SSE <- sum((movies_test1$imdb_score-predict_model_lm)^2)
+SST <- sum((movies_test1$imdb_score-mean(movies_test1$imdb_score))^2)
+
+R2 <- 1-(SSE/SST)
+RMSE <- sqrt(SSE/length(predict_model_lm))
+
+prediction <<- prediction[-1,]
+temp1 <- data.frame(RMSE=RMSE,Rsquared=R2)
+prediction <<- rbind(prediction, lin_reg=temp1 )
+prediction['lin_reg',]
 
 ```
 
 
 
 
+### Decision Tree
+
+
+```{r}
+
+set.seed(101)
+model_rpart <- train(movies_train1[,predictors],
+                  movies_train1[,outcome],
+                  method = 'rpart',
+                  #preProcess = 'scale',
+                  trControl = fitcontrol)
+
+model_rpart
+
+```
+
+### Decision Tree Validation
+
+
+```{r}
+
+predict_model_rpart <- predict(model_rpart,movies_test1[,predictors])
+
+SSE <- sum((movies_test1$imdb_score-predict_model_rpart)^2)
+SST <- sum((movies_test1$imdb_score-mean(movies_test1$imdb_score))^2)
+
+R2 <- 1-(SSE/SST)
+RMSE <- sqrt(SSE/length(predict_model_rpart))
+
+prediction <<- prediction[-2,]
+temp1 <- data.frame(RMSE=RMSE,Rsquared=R2)
+prediction <<- rbind(prediction, decision_tree=temp1 )
+prediction['decision_tree',]
+
+
+```
+
+### random forest
+
+
+```{r}
+
+set.seed(101)
+model_rf <- train(movies_train1[,predictors],
+                  movies_train1[,outcome],
+                  method = 'rf',
+                  #preProcess = 'scale',
+                  trControl = fitcontrol)
+
+model_rf
+
+```
+
+### random forest Validation
+
+
+```{r}
+
+predict_model_rf <- predict(model_rf,movies_test1[,predictors])
+
+SSE <- sum((movies_test1$imdb_score-predict_model_rf)^2)
+SST <- sum((movies_test1$imdb_score-mean(movies_test1$imdb_score))^2)
+
+R2 <- 1-(SSE/SST)
+RMSE <- sqrt(SSE/length(predict_model_rf))
+
+prediction <<- prediction[-3,]
+temp1 <- data.frame(RMSE=RMSE,Rsquared=R2)
+prediction <<- rbind(prediction, random_forest=temp1 )
+prediction['random_forest',]
+
+
+
+```
