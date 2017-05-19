@@ -9,6 +9,7 @@ https://github.com/jeknov/movieRec/blob/master/movieRec.R
 https://muffynomster.wordpress.com/2015/06/07/building-a-movie-recommendation-engine-with-r/
 https://www.analyticsvidhya.com/blog/2016/03/practical-guide-principal-component-analysis-python/
 http://blog.nycdatascience.com/student-works/machine-learning/movie-rating-prediction/
+https://amunategui.github.io/blending-models/
 
 
 ### Project details: 
@@ -322,7 +323,7 @@ fitcontrol1 <- trainControl(method="cv",number=10,savePredictions='final',search
 
 #Defind predictors and outcome
 
-#predictors <- c("duration","director_facebook_likes","actor_3_facebook_likes","actor_1_facebook_likes","facenumber_in_poster","content_rating","budget","title_year","actor_2_facebook_likes","language","color")
+#predictors <- c("duration","director_facebook_likes","actor_3_facebook_likes","actor_1_facebook_likes","facenumber_in_poster","content_rating","budget","title_year","actor_2_facebook_likes","language","color","aspect_ratio")
 predictors <- c("duration","director_facebook_likes","actor_3_facebook_likes","actor_1_facebook_likes","facenumber_in_poster","budget","title_year","actor_2_facebook_likes")
 
 
@@ -619,14 +620,267 @@ prediction['svm_linear',]
 
 ```
 
+### PCA
+
+```{r}
+
+#standardise the data
+movies1 <- movies
+
+#movies1[,c(3:6,8:9,13:14,19,23,25,28)] <- scale(movies1[,c(3:6,8:9,13:14,19,23,25,28)], center = TRUE, scale = TRUE)
+
+
+#load library
+library(dummies)
+
+#create a dummy data frame
+new_my_data <- dummy.data.frame(movies1, names = c("content_rating","language", "color"))
+                                
+
+#divide the new data
+pca.train <- new_my_data[idx,]
+pca.test <- new_my_data[-idx,]
+
+#extra variables used for PCA are: "content_rating","language","color","aspect_ratio"
+predictors1 <- c("duration","director_facebook_likes","actor_3_facebook_likes","actor_1_facebook_likes","facenumber_in_poster","content_rating","budget","title_year","actor_2_facebook_likes","language","color","aspect_ratio")
+
+
+outcome <- "imdb_score"
+
+
+#principal component analysis
+prin_comp <- prcomp(pca.train[,predictors1],scale. = T)
+
+names(prin_comp)
+
+#principal component loading
+prin_comp$rotation[1:5,]
+
+#True value of transformed data
+head(prin_comp$x)
+
+
+```
+
+### PCA plots
+
+```{r}
+
+biplot(prin_comp,scale=0)
+
+
+#compute standard deviation of each principal component
+std_dev <- prin_comp$sdev
+
+#compute variance
+pr_var <- std_dev^2
+
+#proportion of variance explained
+prop_varex <- pr_var/sum(pr_var)
+ 
+#scree plot
+plot(prop_varex, xlab = "Principal Component",
+             ylab = "Proportion of Variance Explained",
+             type = "b")
+
+#cumulative scree plot
+plot(cumsum(prop_varex), xlab = "Principal Component",
+              ylab = "Cumulative Proportion of Variance Explained",
+              type = "b")
+
+summary(prin_comp)
+
+```
+
+### Predictive Modeling with PCA Components
+
+```{r}
+
+#add a training set with principal components
+train.data <- data.frame(imdb_score = pca.train[,outcome], prin_comp$x)
+
+#we are interested in PCAs that capture 90% of the variance
+idx <- which(cumsum(prop_varex)>=0.90)[1]                                                                                                     
+
+train.data <- train.data[,1:(idx+1)]
+
+
+#run a random forest model on training data
+set.seed(101)
+
+model_rf_pca <- train(train.data[,2:ncol(train.data)],
+                   train.data[,1],
+                   method = 'rf',
+                   importance = TRUE,
+                   tuneLength = 9,
+                   trControl = fitcontrol)
+ 
+model_rf_pca
+
+#transform test into PCA
+test.data <- predict(prin_comp, newdata = pca.test[,predictors1])
+test.data <- as.data.frame(test.data)
+
+#select the components that contributed for 90% of variance
+test.data <- test.data[,1:idx]
+
+#make prediction on test data
+predict_model_rf_pca <- predict(model_rf_pca,test.data)
+
+#calculating error measures
+Error_measures(pca.test$imdb_score,predict_model_rf_pca)
+
+#Building the result into table
+prediction <<- prediction[-6,]
+temp1 <- data.frame(RMSE=RMSE,Rsquared=R2)
+prediction <<- rbind(prediction, random_forest_pca=temp1 )
+prediction['random_forest_pca',]
+
+
+```
+
+Can infer that:
+
+- Using PCA, we got slightly better results
+
+
+
+### Check correlation of models(on training) before trying ensembling
+
+
+```{r}
+
+results <- resamples(list(lm = model_lm, rf = model_rf, knn = model_knn, rpart = model_rpart, svm = model_svm))
+summary(results)
+dotplot(results)
+modelCor(results)
+
+```
+
+
+
+### GBM Training
+
+
+```{r}
+
+set.seed(101)
+library(gbm)
+
+model_gbm <- train(movies_train1[,predictors],
+                  movies_train1[,outcome],
+                  method = 'gbm',
+                  verbose = FALSE,
+                  trControl = fitcontrol)
+
+model_gbm
+
+
+```
+
+### GBM Validation
+
+
+```{r}
+
+#prediction
+predict_model_gbm <- predict(model_gbm,movies_test1[,predictors])
+
+#calculating error measures
+Error_measures(movies_test1$imdb_score,predict_model_gbm)
+
+#Building the result into table
+prediction <<- prediction[-7,]
+temp1 <- data.frame(RMSE=RMSE,Rsquared=R2)
+prediction <<- rbind(prediction, gbm=temp1 )
+prediction['gbm',]
+
+```
 
 
 
 
+### Let's try ensembling to see if performance enhances
+
+
+High level steps are:
+
+1) Train the individual base layer models on training data.
+2) Predict using each base layer model for training data and test data. (One key thing to note here is that out of fold predictions are used while predicting for the training data).
+3) Now train the top layer model again on the predictions of the bottom layer models that has been made on the training data.
+4) Finally, predict using the top layer model with the predictions of bottom layer models that has been made for testing data.
 
 
 
+### Step 1) is already done above.
 
+
+Let's combine different models to form an ensemble.
+
+Two of the key principles for selecting the models:
+
+- The individual models fulfill particular accuracy criteria.
+- The model predictions of various individual models are not highly correlated with the predictions of other models.
+
+Let's try svm and knn (as correlation is least)
+
+
+
+### Step 2) Predict using each base layer model for training data and test data.
+
+```{r}
+
+#Predicting the out of fold prediction probabilities for training data
+
+trainSet1$OOF_pred_svm<-model_svm$pred$Y[order(model_svm$pred$rowIndex)]
+trainSet1$OOF_pred_knn<-model_knn$pred$Y[order(model_knn$pred$rowIndex)]
+
+
+
+#Predicting probabilities for the test data
+
+testSet1$OOF_pred_svm<-predict(model_svm,testSet1[predictors],type='prob')$Y
+testSet1$OOF_pred_knn<-predict(model_knn,testSet1[predictors],type='prob')$Y
+
+
+```
+
+
+### Step 3) Now train the top layer model again on the predictions of the bottom layer models that has been made on the training data.
+
+```{r}
+
+#Predictors for top layer models 
+predictors_top <- c('OOF_pred_svm','OOF_pred_knn') 
+
+set.seed(101)
+
+#GBM as top layer model (Gradient Boosting)
+model_gbm <- train(trainSet1[,predictors_top],trainSet1[,outcomeName],method='gbm',trControl=fitControl,verbose = FALSE)
+#verbose: logical. Should R report extra information on progress? If TRUE then report progress
+model_gbm
+
+```
+
+
+### Step 4: Finally, predict using the top layer model with the predictions of bottom layer models that has been made for testing data
+
+
+```{r}
+#predict using GBM top layer model
+testSet1$gbm_stacked<-predict(model_gbm,testSet1[,predictors_top])
+
+```
+
+```{r}
+#check the accuracy
+confusionMatrix(testSet1$gbm_stacked,testSet1$Loan_Status,positive = 'Y')
+```
+
+Can infer that:
+
+- The models are quite similar in nature. That is the reason ensembling is having no effect.
+- The best model is random forest. Let's try tuning it further
 
 
 
