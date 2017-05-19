@@ -316,6 +316,8 @@ movies_test1[,c(3:6,8:9,13:14,19,23,25,28)] <- scale(movies_test1[,c(3:6,8:9,13:
 #Define the training control
 
 fitcontrol <- trainControl(method="cv",number=10,savePredictions='final')
+fitcontrol1 <- trainControl(method="cv",number=10,savePredictions='final',search = "grid")
+
 #fitcontrol <- trainControl(savePredictions='final')
 
 #Defind predictors and outcome
@@ -428,7 +430,7 @@ prediction['lin_reg',]
 
 
 
-### Decision Tree
+### Decision Tree Training
 
 
 ```{r}
@@ -437,7 +439,6 @@ set.seed(101)
 model_rpart <- train(movies_train1[,predictors],
                   movies_train1[,outcome],
                   method = 'rpart',
-                  #preProcess = c('center','scale'),
                   tuneLength = 9,
                   trControl = fitcontrol)
 
@@ -468,7 +469,7 @@ text(model_rpart$finalModel)
 
 ```
 
-### random forest
+### random forest training
 
 
 ```{r}
@@ -477,7 +478,6 @@ set.seed(101)
 model_rf <- train(movies_train1[,predictors],
                   movies_train1[,outcome],
                   method = 'rf',
-                  #preProcess = 'scale',
                   importance = TRUE,
                   tuneLength = 7,
                   trControl = fitcontrol)
@@ -516,7 +516,7 @@ plot(model_rf$finalModel)
 
 Can infer that:
 
-- Initially there is lot of volatility but the curve stabilizes after aound 50 trees 
+- Initially there is lot of volatility but the curve stabilizes after around 50 trees 
 
 ### Variable importance
 
@@ -539,6 +539,95 @@ Can infer that:
 - Facebook popularity of Top 3 actors also effects the rating.
 - Title year also has little impact on the rating.
 - Facenumber in poster is having very less effect on the rating
+
+### K nearest neighbours training
+
+
+```{r}
+
+set.seed(101)
+model_knn <- train(movies_train1[,predictors],
+                  movies_train1[,outcome],
+                  method = 'knn',
+                  tuneLength = 30,
+                  trControl = fitcontrol)
+
+model_knn
+
+
+```
+
+### K nearest neighbours Validation
+
+
+```{r}
+
+#prediction
+predict_model_knn <- predict(model_knn,movies_test1[,predictors])
+
+#calculating error measures
+Error_measures(movies_test1$imdb_score,predict_model_knn)
+
+#Building the result into table
+prediction <<- prediction[-4,]
+temp1 <- data.frame(RMSE=RMSE,Rsquared=R2)
+prediction <<- rbind(prediction, knn=temp1 )
+prediction['knn',]
+
+```
+
+
+### Support vector machines Training
+
+
+```{r}
+
+set.seed(101)
+
+fitcontrol1 <- trainControl(method="cv",number=10,savePredictions='final',search = "grid")
+
+#Grid <- expand.grid(.C=c(0.001,0.01,0.1,1,10))
+Grid <- expand.grid(.C=10^(-3:1))
+
+model_svm <- train(movies_train1[,predictors],
+                  movies_train1[,outcome],
+                  method = 'svmLinear',
+                  tuneGrid = Grid,
+                  trControl = fitcontrol1)
+
+model_svm
+
+
+```
+
+### Support vector machines Validation
+
+
+```{r}
+
+#prediction
+predict_model_svm <- predict(model_svm,movies_test1[,predictors])
+
+#calculating error measures
+Error_measures(movies_test1$imdb_score,predict_model_svm)
+
+#Building the result into table
+prediction <<- prediction[-5,]
+temp1 <- data.frame(RMSE=RMSE,Rsquared=R2)
+prediction <<- rbind(prediction, svm_linear=temp1 )
+prediction['svm_linear',]
+
+```
+
+
+
+
+
+
+
+
+
+
 
 
 
