@@ -5,13 +5,6 @@ output:
     smart: no
 ---
 
-https://github.com/jeknov/movieRec/blob/master/movieRec.R
-https://muffynomster.wordpress.com/2015/06/07/building-a-movie-recommendation-engine-with-r/
-https://www.analyticsvidhya.com/blog/2016/03/practical-guide-principal-component-analysis-python/
-http://blog.nycdatascience.com/student-works/machine-learning/movie-rating-prediction/
-https://amunategui.github.io/blending-models/
-
-
 ### Project details: 
 
 
@@ -228,7 +221,7 @@ social network does not mean that a movie is high rating
 
 <For others>
 
--The "cast_total_facebook_likes" has a strong positive correlation with the "actor_1_facebook_likes", and has smaller positive correlation with both "actor_2_facebook_likes" and "actor_3_facebook_likes"
+- The "cast_total_facebook_likes" has a strong positive correlation with the "actor_1_facebook_likes", and has smaller positive correlation with both "actor_2_facebook_likes" and "actor_3_facebook_likes"
 
 - The "num_user_for_reviews" & "num_critic_for_reviews"" has strong positive correlation with the "num_voted_users", meaning the users who write reviews and are critics also vote for the movie
 
@@ -744,21 +737,6 @@ Can infer that:
 - Using PCA, we got slightly better results
 
 
-
-### Check correlation of models(on training) before trying ensembling
-
-
-```{r}
-
-results <- resamples(list(lm = model_lm, rf = model_rf, knn = model_knn, rpart = model_rpart, svm = model_svm))
-summary(results)
-dotplot(results)
-modelCor(results)
-
-```
-
-
-
 ### GBM Training
 
 
@@ -799,6 +777,18 @@ prediction['gbm',]
 
 
 
+### Check correlation of models(on training) before trying ensembling
+
+
+```{r}
+
+results <- resamples(list(lm = model_lm, rf = model_rf, knn = model_knn, rpart = model_rpart, svm = model_svm, rf_pca = model_rf_pca, gbm = model_gbm))
+summary(results)
+dotplot(results)
+modelCor(results)
+
+```
+
 
 ### Let's try ensembling to see if performance enhances
 
@@ -822,7 +812,13 @@ Two of the key principles for selecting the models:
 - The individual models fulfill particular accuracy criteria.
 - The model predictions of various individual models are not highly correlated with the predictions of other models.
 
-Let's try svm and knn (as correlation is least)
+Let's try gbm, rpart and rf_pca (as correlation is least)
+
+### ensuring the data is proper
+```{r}
+movies_train1 <- movies_train1[,1:28]
+movies_test1 <- movies_test1[,1:28]
+```
 
 
 
@@ -830,18 +826,18 @@ Let's try svm and knn (as correlation is least)
 
 ```{r}
 
-#Predicting the out of fold prediction probabilities for training data
+#Taking the out of fold predictions for training data
 
-trainSet1$OOF_pred_svm<-model_svm$pred$Y[order(model_svm$pred$rowIndex)]
-trainSet1$OOF_pred_knn<-model_knn$pred$Y[order(model_knn$pred$rowIndex)]
+movies_train1$OOF_pred_gbm<-model_gbm$pred$pred[order(model_gbm$pred$rowIndex)]
+movies_train1$OOF_pred_rpart<-model_rpart$pred$pred[order(model_rpart$pred$rowIndex)]
+movies_train1$OOF_pred_rf_pca<-model_rf_pca$pred$pred[order(model_rf_pca$pred$rowIndex)]
 
 
+#Taking Predicted values for the test data
 
-#Predicting probabilities for the test data
-
-testSet1$OOF_pred_svm<-predict(model_svm,testSet1[predictors],type='prob')$Y
-testSet1$OOF_pred_knn<-predict(model_knn,testSet1[predictors],type='prob')$Y
-
+movies_test1$OOF_pred_gbm<-predict(model_gbm,movies_test1[predictors])
+movies_test1$OOF_pred_rpart<-predict(model_rpart,movies_test1[predictors])
+movies_test1$OOF_pred_rf_pca<-predict(model_rf_pca,test.data)
 
 ```
 
@@ -851,14 +847,14 @@ testSet1$OOF_pred_knn<-predict(model_knn,testSet1[predictors],type='prob')$Y
 ```{r}
 
 #Predictors for top layer models 
-predictors_top <- c('OOF_pred_svm','OOF_pred_knn') 
+predictors_top <- c('OOF_pred_gbm','OOF_pred_rpart','OOF_pred_rf_pca') 
 
 set.seed(101)
 
 #GBM as top layer model (Gradient Boosting)
-model_gbm <- train(trainSet1[,predictors_top],trainSet1[,outcomeName],method='gbm',trControl=fitControl,verbose = FALSE)
+model_gbm_top <- train(movies_train1[,predictors_top],movies_train1[,outcome],method='gbm',trControl=fitcontrol,verbose = FALSE)
 #verbose: logical. Should R report extra information on progress? If TRUE then report progress
-model_gbm
+model_gbm_top
 
 ```
 
@@ -868,21 +864,210 @@ model_gbm
 
 ```{r}
 #predict using GBM top layer model
-testSet1$gbm_stacked<-predict(model_gbm,testSet1[,predictors_top])
+movies_test1$gbm_stacked<-predict(model_gbm_top,movies_test1[,predictors_top])
 
 ```
 
 ```{r}
-#check the accuracy
-confusionMatrix(testSet1$gbm_stacked,testSet1$Loan_Status,positive = 'Y')
+#calculating error measures
+Error_measures(movies_test1$imdb_score,movies_test1$gbm_stacked)
+
+RMSE;R2
+
 ```
 
-Can infer that:
+Conclusion:
 
-- The models are quite similar in nature. That is the reason ensembling is having no effect.
-- The best model is random forest. Let's try tuning it further
+- Ensembling has resulted in enhanced performance. 
+- Got better RMSE of 0.93 and Rsquared of 0.25(The proportion of variance explained by the best model is 25%)
+- Ideally we would like to have better Rsquared value but since we included fields corresponding to pre-release only this sort of a result is understandable
+- Without relying on critics or our own instincts, We can conclude that greatness of the movie is dependent on: 
+      - duration                              
+      - director popularity on facebook                      
+      - Top 3 actors popularity on facebook                   
+      - budget                      
+      - title year                         
+      - facenumber in poster  
 
 
 
+### Recommendation engine
+
+
+```{r}
+
+#Loading the data
+movies_recomm <- read.csv('movie_metadata.csv',stringsAsFactors=FALSE)
+
+
+#Removing duplicate movies
+idx_dup <- which(duplicated(movies_recomm$movie_title)==TRUE)
+movies_recomm <- movies_recomm[-idx_dup,]
+
+#considering movies with atleast 1000 votes for recommendation
+movies_recomm <- movies_recomm %>% filter(num_voted_users>=1000)
+
+```
+
+#get unique genres
+
+```{r}
+genre_list <- NULL
+genr <- function(a) 
+{
+  k <- unlist(strsplit(a, "|",fixed = TRUE))
+  genre_list <- unique(union(k,genre_list))
+}
+
+genre_list <- genr(movies_recomm$genres)
+
+
+genre_list <- genre_list[-c(15,20)]
+
+genre_list <- sort(genre_list)
+
+genre_list
+```
+
+
+###seggregate movies by genres
+
+
+```{r}
+genre_matrix2 <- matrix(0, dim(movies_recomm)[1], length(genre_list))
+colnames(genre_matrix2) <- genre_list
+
+row1 <<- 1
+
+upd_genr <- function(a) 
+{
+  k <- unlist(strsplit(a, "|",fixed = TRUE))
+  
+  for (i in 1:length(k)) 
+  {
+    col1 <- which(k[i]==colnames(genre_matrix2))
+    
+    genre_matrix2[row1,col1] <<- 1
+    
+  }
+  row1 <<- row1 + 1
+  
+}
+
+temp <- sapply(movies_recomm$genres,upd_genr)
+
+head(genre_matrix2)
+
+```
+
+### Structure the data
+
+
+```{r}
+
+movies_genre <- as.data.frame(genre_matrix2)
+
+movies_genre <- movies_genre %>% mutate(movie_title=movies_recomm$movie_title,language=movies_recomm$language,imdb_score=movies_recomm$imdb_score)
+
+glimpse(movies_genre)
+```
+
+
+### Function to get Top10 movies
+
+```{r}
+
+top10 <- function(my.genre)
+{
+  idx <<- which(colnames(movies_genre)==my.genre)
+  temp <<- movies_genre %>% filter(movies_genre[,idx]>0) %>% select(idx,24:26) %>%  arrange(desc(imdb_score)) %>% top_n(10)
+}
+
+```
+
+
+### Get Top10 movies in user selected Genre
+
+
+```{r}
+#List of genres to choose from
+p1 <- paste(1:length(genre_list),'-',genre_list)
+cat(p1,sep='\n')
+
+#Take user input genre
+my.genre.number <- readline(prompt="Enter the genre (number) you would like to choose:")
+my.genre.number <- as.integer(unlist(strsplit(my.genre.number, ",")))
+my.genre <- genre_list[my.genre.number]
+
+#Call the function for Top10 movies
+top10(my.genre)
+
+#Top 10 movies in user selected genre
+t1 <- str_trim(temp$movie_title,"right")
+result <- paste0(t1,"(",temp$imdb_score,")")
+cat('\nThe Recommended Top 10',my.genre,'movies are:\n\n')
+cat(result,sep='\n')
+
+```
+
+
+```{r}
+p1 <- paste(1:length(genre_list),'-',genre_list)
+cat(p1,sep='\n')
+my.genre.number <- readline(prompt="Enter the genre (number) you would like to choose:")
+my.genre.number <- as.integer(unlist(strsplit(my.genre.number, ",")))
+my.genre <- genre_list[my.genre.number]
+my.genre
+
+
+#Call the function for Top10 movies
+top10(my.genre)
+
+#Top 10 movies in user selected genre
+t1 <- str_trim(temp$movie_title,"right")
+result <- paste0(t1,"(",temp$imdb_score,")")
+cat('\nThe Recommended Top 10',my.genre,'movies are:\n\n')
+cat(result,sep='\n')
+
+```
+
+
+```{r}
+
+set.seed(101)
+library(gbm)
+
+model_gbm <- train(movies_train1[,predictors],
+                  movies_train1[,outcome],
+                  method = 'gbm',
+                  verbose = FALSE,
+                  trControl = fitcontrol)
+
+model_gbm
+
+
+```
+
+### GBM Validation
+
+
+```{r}
+
+#prediction
+predict_model_gbm <- predict(model_gbm,movies_test1[,predictors])
+
+#calculating error measures
+Error_measures(movies_test1$imdb_score,predict_model_gbm)
+
+#Building the result into table
+prediction <<- prediction[-7,]
+temp1 <- data.frame(RMSE=RMSE,Rsquared=R2)
+prediction <<- rbind(prediction, gbm=temp1 )
+prediction['gbm',]
+
+```
+
+
+```
 
 
