@@ -1,0 +1,896 @@
+---
+title: "Movie recommendation engine part 1"
+output: 
+  html_document: 
+    smart: no
+---
+
+### Project details: 
+
+
+#### Domain: Entertainment
+#### Project: IMDB - Recommendation
+#### Data: movie_metadata.csv
+
+#### Description
+- This dataset contains 28 variables for 5043 movies, spanning across 100 years in 66 countries. There are 2399 unique director names, and thousands of actors/actresses. Below are the 28 variables:
+
+movie_title                                          
+color                                                          
+num_critic_for_reviews                                               
+movie_facebook_likes                                                
+duration                                                        
+director_name                                                       
+director_facebook_likes                                                       
+actor_3_name                                                              
+actor_3_facebook_likes                                                      
+actor_2_name                                                                           
+actor_2_facebook_likes                                                                
+actor_1_name                                                                         
+actor_1_facebook_likes                                                        
+gross                                                                
+genres                                                                       
+num_voted_users                                                                  
+cast_total_facebook_likes                                                            
+facenumber_in_poster                                                                  
+plot_keywords                                                                   
+movie_imdb_link                                                                 
+num_user_for_reviews                                                          
+language                                                                  
+country                                                                  
+content_rating                                                               
+budget                                                                                 
+title_year                                                                      
+imdb_score                                                                          
+aspect_ratio                                                                
+
+#### Objective
+- Given that thousands of movies were produced each year, is there a better way for us to tell the greatness of movie without relying on critics or our own instincts? (Part 1)
+- And try to create a recommendation engine with this dataset. (Part 2)
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+### Loading required packages
+
+```{r}
+
+library(tidyr)
+library(dplyr)
+library(reshape2)
+library(ggplot2)
+
+```
+
+
+### Loading the data
+
+```{r}
+
+movies <- read.csv('movie_metadata.csv',stringsAsFactors=FALSE)
+glimpse(movies)
+summary(movies)
+
+```
+
+The missing values are present in:
+
+num_critic_for_reviews(50)                                
+duration(15)                                      
+director_facebbok_likes(104)                       
+actor_3_facebook_likes(23)                       
+actor_1_facebook_likes(7)                             
+gross(884)                               
+facenumber_in_poster(13)                              
+num_user_for_reviews(21)                               
+budget(492)                                        
+title_year(108)                                          
+actor_2_facebook_likes(13)                          
+aspect_ratio(329)                                     
+
+
+### Removing the duplcate movies
+
+```{r}
+
+idx_dup <- which(duplicated(movies$movie_title)==TRUE)
+movies <- movies[-idx_dup,]
+
+
+```
+
+
+### Finding columns and rows with missing values using function
+```{r}
+miss <- function(x) {
+ cat('\nThe columns having missing values are:')
+ for(i in 1:ncol(x)) {
+  if(length(x[i][is.na(x[i])]) > 0) {
+    cat('\n',names(x[i]),':',length(x[i][is.na(x[i])]))
+  }
+ } 
+  cat('\n\nThe number of rows with missing values are:',nrow(x)-nrow(na.omit(x)))
+  cat('\nThe proportion of missing values is:',signif((nrow(x)-nrow(na.omit(x)))/nrow(x),2))
+}
+
+miss(movies)
+```
+
+
+### Removing rows with missing values in budget and gross
+### Missing values in rest of the columns can be replaced with zeros
+
+```{r}
+
+# remove the rows having missing values in budget and gross
+idx <- which(is.na(movies$budget)==TRUE)
+movies <- movies[-idx,]
+
+idx <- which(is.na(movies$gross)==TRUE)
+movies <- movies[-idx,]
+ 
+# replace with zeros
+movies[is.na(movies)] <- 0
+
+# checking the missing values
+miss(movies)
+ 
+
+```
+
+Now the dataset is clean and ready
+
+
+### Write into csv file so as to do visualizations in tableau
+### check the Visualizations here:
+
+https://public.tableau.com/profile/bharadwaj.tadikonda#!/vizhome/Imdb_recommendation/ImdbscorevsNumvotedUsers
+
+```{r}
+
+write.csv(movies,'movies_tab.csv')
+
+
+```
+
+
+Can infer the following from plots:
+
+- Majority of the scores are in range of 6-8
+
+- Countries like China, Hong kong, India, Italy, Japan, Mexico, Spain, UK have produced the average score of above 7 (min. count of movies is 10)
+
+- UK produced lots of movies (313) with average Imdb score of 7
+
+- US produced largest number of movies(2993), however their average imdb score is 6.5
+
+- We can find that over the years(spcifically after 1975) the quality of movies(as per score) has come down. This might be partly due to the fact that large number of movies are being made.
+
+- As the "movie facebook likes" increases, the score also increases. There are few outliers too like for instance "Interstellar" got the maximum likes(>350k) but score is only 8.6 where as "Godfather" got less than 50k likes but its score is 9.2
+
+- There is positive relationship between "cast total FB likes" and Imdb score, however its not as strong as that of "movie facebook likes"
+
+- As the duration of movie increases, the score also increases
+
+- Generally speaking as the score of movie increases, the gross also increases. However the budgets for high gross earning movies is also high. For instance, movie like "Avatar" which made whopping gross had gross profit margin of 69% where as "A separation" made on comparitively less budget made gross profit margin of 93%
+
+- The most succesful director(with min. 10 movies) is steven spielberg (both in terms of score and gross profit margin %)
+
+- The Top actor score wise(with min. 10 movies) are Tom hanks, Leonardo Dicaprio and Clint Eastwood
+
+- The Top actor-director combination(with min. 3 movies together) are Christain Bale-Christopher Nolan, Robert De Niro -Martin Scorsese, Leonardo Dicaprio -Martin Scorsese, Michael Biehn-James Cameron, Michael Moore-Michael Moore.
+
+- More the "Num Voted users", better is the score. The movie with highest votes is "The shawshank Redemption"(9.3), followed by "The Dark Knight"(9) and "Inception"(8.8)
+
+
+### Correlation analysis
+
+```{r}
+
+library(corrplot)
+x <- cor(movies[,unlist(lapply(movies, is.numeric))])
+
+#corrplot(x,method='number',number.cex=0.75,col='blue')
+corrplot(x,method='number',col='black',cl.pos = "n",number.cex=0.75)
+
+xdf <- as.data.frame(as.table(x))
+xdf <- xdf %>% filter(abs(Freq) > 0.5 & Freq != 1) %>% arrange(desc(Freq))
+ 
+View(xdf)
+
+```
+
+Can infer that:
+
+<For imdb score>
+
+- The "imdb_score" has positive correlation with "num_voted_users". More the voted users, movies tend to have high rating. 
+
+- The "imdb_score" has small but positive correlation with "duration". Long movies tend to have high rating.
+
+- The "imdb_score" has very small but positive correlation with the "director_facebook_likes", meaning a popular director does not necessarily mean his directed movie is great.
+
+- The "imdb_score" has very small but positive correlation with the "actor_1_facebook_likes", meaning that an leading actor is popular in 
+social network does not mean that a movie is high rating
+
+- The "imdb_score" has small but negative correlation with "facenumber_in_poster". It is perhaps not a good idea to have many faces in movie poster if a movie wants to be great.
+
+- The "imdb_score" has almost no correlation with "budget". Throwing money at a movie will not necessarily make it great.
+
+<For others>
+
+- The "cast_total_facebook_likes" has a strong positive correlation with the "actor_1_facebook_likes", and has smaller positive correlation with both "actor_2_facebook_likes" and "actor_3_facebook_likes"
+
+- The "num_user_for_reviews" & "num_critic_for_reviews"" has strong positive correlation with the "num_voted_users", meaning the users who write reviews and are critics also vote for the movie
+
+- The "movie_facebook_likes" has strong correlation with "num_critic_for_reviews", meaning that the popularity of a movie in social network can be largely affected by the critics
+
+- The movie "gross" has strong positive correlation with the "num_voted_users"
+
+- The "movie_facebook_likes" has relatively large correlation with the "num_voted_users"
+
+### Correlation implies linear relationship. Let's validate it through scatter plot
+### Multicollinearity should not exist for linear regression
+
+```{r}
+ggplot(movies,aes(actor_1_facebook_likes,cast_total_facebook_likes))+geom_point()+geom_smooth(method = 'lm')
+ggplot(movies,aes(num_user_for_reviews,num_voted_users))+geom_point()+geom_smooth(method = 'lm')
+ggplot(movies,aes(movie_facebook_likes,num_critic_for_reviews))+geom_point()+geom_smooth(method = 'lm')
+ggplot(movies,aes(num_voted_users,gross))+geom_point()+geom_smooth(method = 'lm')
+
+
+```
+
+
+
+### Selecting the variables for linear regression
+
+
+```{r}
+
+#remove variables that correspond to post release
+  #num_critic_for_reviews 
+  #gross
+  #num_voted_users
+  #num_user_for_reviews
+  #movie_facebook_likes
+
+#remove variables having high collinearity
+  #cast_total_facebook_likes
+  
+#remove other variables 
+  #genres
+  #plot_keywords
+  #movie_imdb_link
+  #director_name
+  #actor_1_name
+  #actor_2_name
+  #actor_3_name
+  #movie_title
+  #country
+
+```
+
+### Split the data into train and test
+
+
+```{r}
+
+# removing the variables 
+
+#movies_sub <- movies %>% select(-c(num_critic_for_reviews, gross, num_voted_users, num_user_for_reviews, movie_facebook_likes, cast_total_facebook_likes, genres, plot_keywords, movie_imdb_link,director_name,actor_1_name,actor_2_name,actor_3_name,movie_title,country,aspect_ratio))
+
+#divide the new data
+
+library(caret)
+
+set.seed(100)
+idx <- createDataPartition(movies$imdb_score,p=0.7,list = FALSE)
+
+movies_train <- movies[idx,]
+movies_test <- movies[-idx,]
+
+#standardise the data
+movies_train1 <- movies_train
+movies_test1 <- movies_test
+
+movies_train1[,c(3:6,8:9,13:14,19,23,25,28)] <- scale(movies_train1[,c(3:6,8:9,13:14,19,23,25,28)], center = TRUE, scale = TRUE)
+
+movies_test1[,c(3:6,8:9,13:14,19,23,25,28)] <- scale(movies_test1[,c(3:6,8:9,13:14,19,23,25,28)], center = TRUE, scale = TRUE)
+
+```
+
+
+### Defining parameters
+
+```{r}
+
+#Define the training control
+
+fitcontrol <- trainControl(method="cv",number=10,savePredictions='final')
+fitcontrol1 <- trainControl(method="cv",number=10,savePredictions='final',search = "grid")
+
+#fitcontrol <- trainControl(savePredictions='final')
+
+#Defind predictors and outcome
+
+#predictors <- c("duration","director_facebook_likes","actor_3_facebook_likes","actor_1_facebook_likes","facenumber_in_poster","content_rating","budget","title_year","actor_2_facebook_likes","language","color","aspect_ratio")
+predictors <- c("duration","director_facebook_likes","actor_3_facebook_likes","actor_1_facebook_likes","facenumber_in_poster","budget","title_year","actor_2_facebook_likes")
+
+
+outcome <- "imdb_score"
+
+```
+
+
+### Initializing the results table
+
+```{r}
+
+prediction <- data.frame()
+
+```
+
+### Creating error measures(RMSE, Rsquared) to validate the model
+### RMSE    : Root Mean squared Error. It tells the error in prediction
+### Rsquared: It tells the poportion of variance explained by the model
+
+```{r}
+
+Error_measures <- function(actual,predicted)
+{
+  SSE <- sum((actual-predicted)^2)
+  SST <- sum((actual-mean(actual))^2)
+  
+  R2 <<- 1-(SSE/SST)
+  
+  error <- actual-predicted
+  RMSE <<- sqrt(mean(error^2))
+}
+
+```
+
+
+
+### Linear Regression Training
+
+
+```{r}
+
+set.seed(101)
+model_lm <- train(movies_train1[,predictors],
+                  movies_train1[,outcome],
+                  method = 'lm',
+                  #preProcess = c('center','scale'),
+                  tuneLength = 9,
+                  trControl = fitcontrol)
+
+model_lm
+
+
+
+```
+
+
+### Validating Linear Regression Assumptions
+
+```{r}
+
+#Linearity & Homoscedasticity
+
+residuals <- model_lm$pred[,'obs']-model_lm$pred[,'pred']
+plot(model_lm$pred[,'pred'],residuals,xlab='Fitted values',main="Fitted vs Residuals")
+
+#Normality
+
+qqnorm(residuals)
+qqline(residuals)
+
+#Multicollinearity
+library(car)
+vif(model_lm$finalModel)
+
+```
+
+Can infer that:
+
+- Linearity & homoscedasticity exists(though not perfect)
+- Normality exists(though slight deviation)
+- VIF<=4, so we can say multicollinearity doesnot exist between the predictor variables
+- Since all these assumptions hold good, we can proceed with linear regression model
+
+
+### Linear Regression Validation
+
+
+```{r}
+
+#prediction
+predict_model_lm <- predict(model_lm,movies_test1[,predictors])
+
+#calculating error measures
+Error_measures(movies_test1$imdb_score,predict_model_lm)
+
+#Building the result into table
+prediction <<- prediction[-1,]
+temp1 <- data.frame(RMSE=RMSE,Rsquared=R2)
+prediction <<- rbind(prediction, lin_reg=temp1 )
+prediction['lin_reg',]
+
+```
+
+
+
+
+### Decision Tree Training
+
+
+```{r}
+
+set.seed(101)
+model_rpart <- train(movies_train1[,predictors],
+                  movies_train1[,outcome],
+                  method = 'rpart',
+                  tuneLength = 9,
+                  trControl = fitcontrol)
+
+model_rpart
+
+```
+
+### Decision Tree Validation
+
+
+```{r}
+
+#prediction
+predict_model_rpart <- predict(model_rpart,movies_test1[,predictors])
+
+#calculating error measures
+Error_measures(movies_test1$imdb_score,predict_model_rpart)
+
+#Building the result into table
+prediction <<- prediction[-2,]
+temp1 <- data.frame(RMSE=RMSE,Rsquared=R2)
+prediction <<- rbind(prediction, decision_tree=temp1 )
+prediction['decision_tree',]
+
+#plot the tree
+plot(model_rpart$finalModel)
+text(model_rpart$finalModel)
+
+```
+
+### random forest training
+
+
+```{r}
+
+set.seed(101)
+model_rf <- train(movies_train1[,predictors],
+                  movies_train1[,outcome],
+                  method = 'rf',
+                  importance = TRUE,
+                  tuneLength = 7,
+                  trControl = fitcontrol)
+
+model_rf
+
+```
+
+### random forest Validation
+
+
+```{r}
+
+#prediction
+predict_model_rf <- predict(model_rf,movies_test1[,predictors])
+
+#calculating error measures
+Error_measures(movies_test1$imdb_score,predict_model_rf)
+
+#Building the result into table
+prediction <<- prediction[-3,]
+temp1 <- data.frame(RMSE=RMSE,Rsquared=R2)
+prediction <<- rbind(prediction, random_forest=temp1 )
+prediction['random_forest',]
+
+```
+
+### Plot the error in random forest model
+
+```{r}
+
+#plot the error
+plot(model_rf$finalModel)
+
+```
+
+Can infer that:
+
+- Initially there is lot of volatility but the curve stabilizes after around 50 trees 
+
+### Variable importance
+
+
+```{r}
+
+
+#check the variables important to the model
+
+#varImp(model_rf$finalModel)
+varImpPlot(model_rf$finalModel,main="Variable Importance")
+
+```
+
+Can infer that:
+
+- The most important factor affecting movie rating is duration. The longer the movie, the better is the rating
+- Budget is also important, although we have seen earlier that budget has got very less correlation with rating
+- Facebook popularity of director is very important to the rating.
+- Facebook popularity of Top 3 actors also effects the rating.
+- Title year also has little impact on the rating.
+- Facenumber in poster is having very less effect on the rating
+
+### K nearest neighbours training
+
+
+```{r}
+
+set.seed(101)
+model_knn <- train(movies_train1[,predictors],
+                  movies_train1[,outcome],
+                  method = 'knn',
+                  tuneLength = 30,
+                  trControl = fitcontrol)
+
+model_knn
+
+
+```
+
+### K nearest neighbours Validation
+
+
+```{r}
+
+#prediction
+predict_model_knn <- predict(model_knn,movies_test1[,predictors])
+
+#calculating error measures
+Error_measures(movies_test1$imdb_score,predict_model_knn)
+
+#Building the result into table
+prediction <<- prediction[-4,]
+temp1 <- data.frame(RMSE=RMSE,Rsquared=R2)
+prediction <<- rbind(prediction, knn=temp1 )
+prediction['knn',]
+
+```
+
+
+### Support vector machines Training
+
+
+```{r}
+
+set.seed(101)
+
+fitcontrol1 <- trainControl(method="cv",number=10,savePredictions='final',search = "grid")
+
+#Grid <- expand.grid(.C=c(0.001,0.01,0.1,1,10))
+Grid <- expand.grid(.C=10^(-3:1))
+
+model_svm <- train(movies_train1[,predictors],
+                  movies_train1[,outcome],
+                  method = 'svmLinear',
+                  tuneGrid = Grid,
+                  trControl = fitcontrol1)
+
+model_svm
+
+
+```
+
+### Support vector machines Validation
+
+
+```{r}
+
+#prediction
+predict_model_svm <- predict(model_svm,movies_test1[,predictors])
+
+#calculating error measures
+Error_measures(movies_test1$imdb_score,predict_model_svm)
+
+#Building the result into table
+prediction <<- prediction[-5,]
+temp1 <- data.frame(RMSE=RMSE,Rsquared=R2)
+prediction <<- rbind(prediction, svm_linear=temp1 )
+prediction['svm_linear',]
+
+```
+
+### PCA
+
+```{r}
+
+#standardise the data
+movies1 <- movies
+
+#movies1[,c(3:6,8:9,13:14,19,23,25,28)] <- scale(movies1[,c(3:6,8:9,13:14,19,23,25,28)], center = TRUE, scale = TRUE)
+
+
+#load library
+library(dummies)
+
+#create a dummy data frame
+new_my_data <- dummy.data.frame(movies1, names = c("content_rating","language", "color"))
+                                
+
+#divide the new data
+pca.train <- new_my_data[idx,]
+pca.test <- new_my_data[-idx,]
+
+#extra variables used for PCA are: "content_rating","language","color","aspect_ratio"
+predictors1 <- c("duration","director_facebook_likes","actor_3_facebook_likes","actor_1_facebook_likes","facenumber_in_poster","content_rating","budget","title_year","actor_2_facebook_likes","language","color","aspect_ratio")
+
+
+outcome <- "imdb_score"
+
+
+#principal component analysis
+prin_comp <- prcomp(pca.train[,predictors1],scale. = T)
+
+names(prin_comp)
+
+#principal component loading
+prin_comp$rotation[1:5,]
+
+#True value of transformed data
+head(prin_comp$x)
+
+
+```
+
+### PCA plots
+
+```{r}
+
+biplot(prin_comp,scale=0)
+
+
+#compute standard deviation of each principal component
+std_dev <- prin_comp$sdev
+
+#compute variance
+pr_var <- std_dev^2
+
+#proportion of variance explained
+prop_varex <- pr_var/sum(pr_var)
+ 
+#scree plot
+plot(prop_varex, xlab = "Principal Component",
+             ylab = "Proportion of Variance Explained",
+             type = "b")
+
+#cumulative scree plot
+plot(cumsum(prop_varex), xlab = "Principal Component",
+              ylab = "Cumulative Proportion of Variance Explained",
+              type = "b")
+
+summary(prin_comp)
+
+```
+
+### Predictive Modeling with PCA Components
+
+```{r}
+
+#add a training set with principal components
+train.data <- data.frame(imdb_score = pca.train[,outcome], prin_comp$x)
+
+#we are interested in PCAs that capture 90% of the variance
+idx <- which(cumsum(prop_varex)>=0.90)[1]                                                                                                     
+
+train.data <- train.data[,1:(idx+1)]
+
+
+#run a random forest model on training data
+set.seed(101)
+
+model_rf_pca <- train(train.data[,2:ncol(train.data)],
+                   train.data[,1],
+                   method = 'rf',
+                   importance = TRUE,
+                   tuneLength = 9,
+                   trControl = fitcontrol)
+ 
+model_rf_pca
+
+#transform test into PCA
+test.data <- predict(prin_comp, newdata = pca.test[,predictors1])
+test.data <- as.data.frame(test.data)
+
+#select the components that contributed for 90% of variance
+test.data <- test.data[,1:idx]
+
+#make prediction on test data
+predict_model_rf_pca <- predict(model_rf_pca,test.data)
+
+#calculating error measures
+Error_measures(pca.test$imdb_score,predict_model_rf_pca)
+
+#Building the result into table
+prediction <<- prediction[-6,]
+temp1 <- data.frame(RMSE=RMSE,Rsquared=R2)
+prediction <<- rbind(prediction, random_forest_pca=temp1 )
+prediction['random_forest_pca',]
+
+
+```
+
+Can infer that:
+
+- Using PCA, we got slightly better results
+
+
+### GBM Training
+
+
+```{r}
+
+set.seed(101)
+library(gbm)
+
+model_gbm <- train(movies_train1[,predictors],
+                  movies_train1[,outcome],
+                  method = 'gbm',
+                  verbose = FALSE,
+                  trControl = fitcontrol)
+
+model_gbm
+
+
+```
+
+### GBM Validation
+
+
+```{r}
+
+#prediction
+predict_model_gbm <- predict(model_gbm,movies_test1[,predictors])
+
+#calculating error measures
+Error_measures(movies_test1$imdb_score,predict_model_gbm)
+
+#Building the result into table
+prediction <<- prediction[-7,]
+temp1 <- data.frame(RMSE=RMSE,Rsquared=R2)
+prediction <<- rbind(prediction, gbm=temp1 )
+prediction['gbm',]
+
+```
+
+
+
+### Check correlation of models(on training) before trying ensembling
+
+
+```{r}
+
+results <- resamples(list(lm = model_lm, rf = model_rf, knn = model_knn, rpart = model_rpart, svm = model_svm, rf_pca = model_rf_pca, gbm = model_gbm))
+summary(results)
+dotplot(results)
+modelCor(results)
+
+```
+
+
+### Let's try ensembling to see if performance enhances
+
+
+High level steps are:
+
+1) Train the individual base layer models on training data.
+2) Predict using each base layer model for training data and test data. (One key thing to note here is that out of fold predictions are used while predicting for the training data).
+3) Now train the top layer model again on the predictions of the bottom layer models that has been made on the training data.
+4) Finally, predict using the top layer model with the predictions of bottom layer models that has been made for testing data.
+
+
+
+### Step 1) is already done above.
+
+
+Let's combine different models to form an ensemble.
+
+Two of the key principles for selecting the models:
+
+- The individual models fulfill particular accuracy criteria.
+- The model predictions of various individual models are not highly correlated with the predictions of other models.
+
+Let's try gbm, rpart and rf_pca (as correlation is least)
+
+### ensuring the data is proper
+```{r}
+movies_train1 <- movies_train1[,1:28]
+movies_test1 <- movies_test1[,1:28]
+```
+
+
+
+### Step 2) Predict using each base layer model for training data and test data.
+
+```{r}
+
+#Taking the out of fold predictions for training data
+
+movies_train1$OOF_pred_gbm<-model_gbm$pred$pred[order(model_gbm$pred$rowIndex)]
+movies_train1$OOF_pred_rpart<-model_rpart$pred$pred[order(model_rpart$pred$rowIndex)]
+movies_train1$OOF_pred_rf_pca<-model_rf_pca$pred$pred[order(model_rf_pca$pred$rowIndex)]
+
+
+#Taking Predicted values for the test data
+
+movies_test1$OOF_pred_gbm<-predict(model_gbm,movies_test1[predictors])
+movies_test1$OOF_pred_rpart<-predict(model_rpart,movies_test1[predictors])
+movies_test1$OOF_pred_rf_pca<-predict(model_rf_pca,test.data)
+
+```
+
+
+### Step 3) Now train the top layer model again on the predictions of the bottom layer models that has been made on the training data.
+
+```{r}
+
+#Predictors for top layer models 
+predictors_top <- c('OOF_pred_gbm','OOF_pred_rpart','OOF_pred_rf_pca') 
+
+set.seed(101)
+
+#GBM as top layer model (Gradient Boosting)
+model_gbm_top <- train(movies_train1[,predictors_top],movies_train1[,outcome],method='gbm',trControl=fitcontrol,verbose = FALSE)
+#verbose: logical. Should R report extra information on progress? If TRUE then report progress
+model_gbm_top
+
+```
+
+
+### Step 4: Finally, predict using the top layer model with the predictions of bottom layer models that has been made for testing data
+
+
+```{r}
+#predict using GBM top layer model
+movies_test1$gbm_stacked<-predict(model_gbm_top,movies_test1[,predictors_top])
+
+```
+
+```{r}
+#calculating error measures
+Error_measures(movies_test1$imdb_score,movies_test1$gbm_stacked)
+
+RMSE;R2
+
+```
+
+Conclusion:
+
+- Ensembling has resulted in enhanced performance. 
+- Got better RMSE of 0.93 and Rsquared of 0.25(The proportion of variance explained by the best model is 25%)
+- Ideally we would like to have better Rsquared value but since we included fields corresponding to pre-release only this sort of a result is understandable
+- Without relying on critics or our own instincts, We can conclude that greatness of the movie is dependent on: 
+      - duration                              
+      - director popularity on facebook                      
+      - Top 3 actors popularity on facebook                   
+      - budget                      
+      - title year                         
+      - facenumber in poster  
+
+
+
+
+
