@@ -199,7 +199,7 @@ corrplot(x,method='number',col='black',cl.pos = "n",number.cex=0.75)
 xdf <- as.data.frame(as.table(x))
 xdf <- xdf %>% filter(abs(Freq) > 0.5 & Freq != 1) %>% arrange(desc(Freq))
  
-View(xdf)
+xdf
 
 ```
 
@@ -331,6 +331,8 @@ outcome <- "imdb_score"
 ```{r}
 
 prediction <- data.frame()
+RMSE <- NULL
+R2 <- NULL
 
 ```
 
@@ -528,12 +530,14 @@ varImpPlot(model_rf$finalModel,main="Variable Importance")
 
 Can infer that:
 
-- The most important factor affecting movie rating is duration. The longer the movie, the better is the rating
-- Budget is also important, although we have seen earlier that budget has got very less correlation with rating
-- Facebook popularity of director is very important to the rating.
-- Facebook popularity of Top 3 actors also effects the rating.
-- Title year also has little impact on the rating.
-- Facenumber in poster is having very less effect on the rating
+- The most important factor affecting movie rating are as follows: 
+      - duration 
+      - budget 
+      - director popularity on facebook     
+      - Top 3 actors popularity on facebook                   
+      - title year      
+      - facenumber in poster 
+      
 
 ### K nearest neighbours training
 
@@ -618,32 +622,35 @@ prediction['svm_linear',]
 
 ```{r}
 
-#standardise the data
-movies1 <- movies
-
-#movies1[,c(3:6,8:9,13:14,19,23,25,28)] <- scale(movies1[,c(3:6,8:9,13:14,19,23,25,28)], center = TRUE, scale = TRUE)
-
-
 #load library
 library(dummies)
 
 #create a dummy data frame
-new_my_data <- dummy.data.frame(movies1, names = c("content_rating","language", "color"))
-                                
+new_my_data <- dummy.data.frame(movies, names = c("content_rating","language", "color"))
+
+
 
 #divide the new data
 pca.train <- new_my_data[idx,]
 pca.test <- new_my_data[-idx,]
 
-#extra variables used for PCA are: "content_rating","language","color","aspect_ratio"
-predictors1 <- c("duration","director_facebook_likes","actor_3_facebook_likes","actor_1_facebook_likes","facenumber_in_poster","content_rating","budget","title_year","actor_2_facebook_likes","language","color","aspect_ratio")
+
+predictors2_exclude <- c("num_critic_for_reviews", "gross", "num_voted_users", "num_user_for_reviews", "movie_facebook_likes", "cast_total_facebook_likes", "genres", "plot_keywords", "movie_imdb_link", "director_name", "actor_1_name", "actor_2_name", "actor_3_name", "movie_title", "country", "imdb_score")
 
 
 outcome <- "imdb_score"
 
+#extra variables used for PCA are: "content_rating","language","color","aspect_ratio"
+predictors2 <- names(pca.train)[!(names(pca.train) %in% predictors2_exclude)]
+
+
+
+#checking columns having variance of 0. These need to be eliminated in order for PCA to function
+i <- which(apply(pca.train[,predictors2],2,var)==0)
+
 
 #principal component analysis
-prin_comp <- prcomp(pca.train[,predictors1],scale. = T)
+prin_comp <- prcomp(pca.train[,predictors2[-i]],scale. = T)
 
 names(prin_comp)
 
@@ -655,6 +662,9 @@ head(prin_comp$x)
 
 
 ```
+
+
+
 
 ### PCA plots
 
@@ -701,18 +711,18 @@ train.data <- train.data[,1:(idx+1)]
 
 #run a random forest model on training data
 set.seed(101)
-
 model_rf_pca <- train(train.data[,2:ncol(train.data)],
                    train.data[,1],
                    method = 'rf',
                    importance = TRUE,
                    tuneLength = 9,
                    trControl = fitcontrol)
+
  
 model_rf_pca
 
 #transform test into PCA
-test.data <- predict(prin_comp, newdata = pca.test[,predictors1])
+test.data <- predict(prin_comp, newdata = pca.test[,predictors2])
 test.data <- as.data.frame(test.data)
 
 #select the components that contributed for 90% of variance
@@ -735,7 +745,7 @@ prediction['random_forest_pca',]
 
 Can infer that:
 
-- Using PCA, we got slightly better results
+- Using PCA(with random forest), we got better results
 
 
 ### GBM Training
@@ -813,7 +823,7 @@ Two of the key principles for selecting the models:
 - The individual models fulfill particular accuracy criteria.
 - The model predictions of various individual models are not highly correlated with the predictions of other models.
 
-Let's try gbm, rpart and rf_pca (as correlation is least)
+Let's try knn, rpart and rf_pca (as correlation is least)
 
 ### ensuring the data is proper
 ```{r}
@@ -829,15 +839,15 @@ movies_test1 <- movies_test1[,1:28]
 
 #Taking the out of fold predictions for training data
 
-movies_train1$OOF_pred_gbm<-model_gbm$pred$pred[order(model_gbm$pred$rowIndex)]
 movies_train1$OOF_pred_rpart<-model_rpart$pred$pred[order(model_rpart$pred$rowIndex)]
+movies_train1$OOF_pred_knn<-model_knn$pred$pred[order(model_knn$pred$rowIndex)]
 movies_train1$OOF_pred_rf_pca<-model_rf_pca$pred$pred[order(model_rf_pca$pred$rowIndex)]
 
 
 #Taking Predicted values for the test data
 
-movies_test1$OOF_pred_gbm<-predict(model_gbm,movies_test1[predictors])
 movies_test1$OOF_pred_rpart<-predict(model_rpart,movies_test1[predictors])
+movies_test1$OOF_pred_knn<-predict(model_knn,movies_test1[predictors])
 movies_test1$OOF_pred_rf_pca<-predict(model_rf_pca,test.data)
 
 ```
@@ -848,7 +858,7 @@ movies_test1$OOF_pred_rf_pca<-predict(model_rf_pca,test.data)
 ```{r}
 
 #Predictors for top layer models 
-predictors_top <- c('OOF_pred_gbm','OOF_pred_rpart','OOF_pred_rf_pca') 
+predictors_top <- c('OOF_pred_rpart','OOF_pred_knn','OOF_pred_rf_pca') 
 
 set.seed(101)
 
@@ -877,20 +887,124 @@ RMSE;R2
 
 ```
 
+Can infer that:
+
+- Ensembling has resulted in enhanced performance compared to individual models (however it is less than rf_pca) 
+
+
+### Let's try individual xgb model. It is regarded as the most powerful algorithm
+### xgb Training
+
+
+```{r}
+
+set.seed(101)
+library(xgboost)
+
+predictors2_exclude <- c("num_critic_for_reviews", "gross", "num_voted_users", "num_user_for_reviews", "movie_facebook_likes", "cast_total_facebook_likes", "genres", "plot_keywords", "movie_imdb_link", "director_name", "actor_1_name", "actor_2_name", "actor_3_name", "movie_title", "country", "imdb_score")
+
+
+outcome <- "imdb_score"
+
+predictors2 <- names(pca.train)[!(names(pca.train) %in% predictors2_exclude)]
+
+
+model_xgb <- train(pca.train[,predictors2],
+                 pca.train[,outcome],
+                  method = 'xgbTree',
+                  verbose = FALSE,
+                  trControl = fitcontrol)
+
+
+model_xgb
+
+```
+
+### xgb Validation
+
+
+```{r}
+
+#prediction
+predict_model_xgb <- predict(model_xgb,pca.test[,predictors2])
+
+#calculating error measures
+Error_measures(pca.test$imdb_score,predict_model_xgb)
+
+
+RMSE;R2
+
+```
+
+Can infer that:
+
+- There is a significant improvement compared to ensemble model
+
+
+### xgb importance variables
+
+```{r}
+
+
+importance_matrix <- xgb.importance(predictors2,model=model_xgb$finalModel)
+
+xgb.plot.importance(importance_matrix,top_n=10)
+
+
+plot(cumsum(importance_matrix$Gain),type='b',xlab='no. of variables',ylab='cummulative Gain',main='cummulative gain explained by variables')
+cumsum(importance_matrix$Gain)
+
+cat('\nThe important variables to the model are:\n')
+importance_matrix$Feature
+
+```
+
+
+### Lets run the xgb model again with important variables alone
+
+
+```{r}
+set.seed(101)
+library(xgboost)
+
+model_xgb <- train(pca.train[,importance_matrix$Feature],
+                 pca.train[,outcome],
+                  method = 'xgbTree',
+                  verbose = FALSE,
+                  trControl = fitcontrol)
+
+
+model_xgb
+```
+
+### validate to see if we get better results
+
+
+```{r}
+
+#prediction
+predict_model_xgb <- predict(model_xgb,pca.test[,importance_matrix$Feature])
+
+#calculating error measures
+Error_measures(pca.test$imdb_score,predict_model_xgb)
+
+
+RMSE;R2
+
+```
+
 Conclusion:
 
-- Ensembling has resulted in enhanced performance. 
-- Got better RMSE of 0.93 and Rsquared of 0.25(The proportion of variance explained by the best model is 25%)
+- This is the best performance we have. 
+- Got better RMSE of 0.86 and Rsquared of 0.35(The proportion of variance explained by the best model is 35%)
 - Ideally we would like to have better Rsquared value but since we included fields corresponding to pre-release only this sort of a result is understandable
 - Without relying on critics or our own instincts, We can conclude that greatness of the movie is dependent on: 
-      - duration                              
-      - director popularity on facebook                      
+      - Duration : The longer the movie, the better is the rating                           
+      - Director popularity on facebook     
+      - Budget (although we have seen earlier that budget has got very less correlation with rating)
       - Top 3 actors popularity on facebook                   
-      - budget                      
-      - title year                         
-      - facenumber in poster  
-
-
-
-
+      - Title year      
+      - Language (English seem to be getting more ratings)
+      - Facenumber in poster 
+      - Content rating (PG-13 seem be influencing ratings more)
 
