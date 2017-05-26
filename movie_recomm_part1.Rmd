@@ -1008,3 +1008,88 @@ Conclusion:
       - Facenumber in poster 
       - Content rating (PG-13 seem be influencing ratings more)
 
+
+
+
+```{r}
+movies_sel <- movies
+movies_sel <- movies_sel[,-c(2,7,10,11,12,15,17,18)]
+
+```
+
+```{r}
+
+movies_sel <- movies_sel %>% mutate(new_language=as.factor(language),new_country=as.factor(country),new_content_rating=as.factor(content_rating))
+
+```
+
+
+```{r}
+
+change_cat <- function(x)
+{
+  x$Var2 <<- as.character(x$Var1)
+
+  for(i in 1: length(x$Freq))
+  {
+    if (((x$Freq/sum(x$Freq))*100)[i]<5)
+    {
+      x$Var2[i] <<- "Other"
+    }
+  }
+  
+}
+
+
+new_cat <- function(y)
+{
+  idx <- which(y==x$Var1)
+  return(x$Var2[idx])
+  
+}
+
+
+
+
+x <- as.data.frame(table(movies_sel$new_language))
+change_cat(x)
+movies_sel$new_language <- sapply(movies_sel$new_language, new_cat) 
+movies_sel$new_language <- as.factor(movies_sel$new_language)
+
+x <- as.data.frame(table(movies_sel$new_country))
+change_cat(x)
+movies_sel$new_country <- sapply(movies_sel$new_country, new_cat) 
+movies_sel$new_country <- as.factor(movies_sel$new_country)
+
+
+x <- as.data.frame(table(movies_sel$new_content_rating))
+change_cat(x)
+movies_sel$new_content_rating <- sapply(movies_sel$new_content_rating, new_cat) 
+movies_sel$new_content_rating <- as.factor(movies_sel$new_content_rating)
+
+```
+
+```{r}
+
+movies_sel <- movies_sel[,-c(12:14)]
+
+```
+
+```{r}
+#load library
+library(dummies)
+
+#create a dummy data frame
+movies.new <- dummy.data.frame(movies_sel, sep='.')
+```
+
+```{r}
+library(caret)
+control <- rfeControl(functions=rfFuncs,method='cv',number=10)
+results <- rfe(movies.new[,-17],movies.new[,17],sizes=c(1:28),rfeControl=control)
+results
+
+```
+
+
+
