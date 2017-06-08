@@ -1,0 +1,428 @@
+---
+title: "Mushroom Classification"
+output: 
+  html_document: 
+    smart: no
+---
+
+### Project details: 
+
+####Project: Mushroom Classification
+####Data: mushrooms.csv
+
+####Description:
+This dataset includes descriptions of hypothetical samples corresponding to 23 species of gilled mushrooms in the Agaricus and Lepiota Family Mushroom drawn from The Audubon Society Field Guide to North American Mushrooms (1981). Each species is identified as definitely edible, definitely poisonous, or of unknown edibility and not recommended. This latter class was combined with the poisonous one. The Guide clearly states that there is no simple rule for determining the edibility of a mushroom; no rule like "leaflets three, let it be'' for Poisonous Oak and Ivy.
+
+####Objective:
+
+- Make classification model to predict the class of mushroom(p=poisonous, e = edible)
+- What types of machine learning models perform best on this dataset?
+- Which features are most indicative of a poisonous mushroom?
+
+####Guidelines:
+
+- Explore and prepare the data
+- Create training and testing data for the model
+- Train the model
+- Test the model
+- Show or visualize the output
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(pROC)
+```
+
+### Loading the data
+
+```{r}
+
+mushrooms <- read.csv('mushrooms.csv')
+str(mushrooms)
+
+```
+
+
+### check missing values
+
+```{r}
+summary(mushrooms)
+
+```
+
+- stalk.root is having missing values (?)
+- Let's proceed with ? by treating it as some valid type
+
+
+### removing "veil type" as it has only 1 value. So it will not help in modelling
+
+```{r}
+
+mushrooms <- mushrooms %>% select(-veil.type)
+str(mushrooms)
+
+```
+
+### Plot for dependent variable
+
+```{r}
+
+ggplot(mushrooms,aes(class,fill=class))+geom_bar()
+
+```
+
+- The proportions of poisonous and edible are almost equal. So we can say that the dependent variable is not skewed.
+
+### Bivariate analysis
+
+```{r}
+
+cols <- names(mushrooms)
+cols <- cols[which(cols!='class')]
+
+for (i in 1:length(cols))
+{
+  pl <- ggplot(mushrooms,aes(class,mushrooms[,cols[i]],color=class))+geom_jitter()+labs(x='class',y=cols[i],title=paste0('class vs ',cols[i]))
+  print(pl)
+  
+}
+
+```
+
+Can infer that:
+
+- All the predictor variables(different types) are having similar proportions in Edible and Poisonous expect below:
+- Cap_shape "conical" is having poisonous only, Cap_shape "sunken" is having Edible only, Cap_shape "bell" is having more of edible
+- Cap_surface "grooves" is having poisonous only
+- Cap_color "purple"/"red" is having edible only
+- odor "fishy"/"pungent/spicy"/"musty"/"foul"/"creosote" are having poisonous only where as "almond"/"anise" are having edible only 
+- gill_spacing "crowded" is having more of edible
+- gill_size "narrow" is having more of poisonous
+- gill_color "green"/"buff" is having poisonous only, "orange"/"red" is having edible only
+- stalk_root "rooted" is having edible only
+- stalk_color_above_ring & stalk_color_below_ring "yellow"/"cinnamon"/"buff" is having poisonous only, "orange"/"gray"/"red" is having edible only
+- veil_color "yellow" is having poisonous only, "orange"/"brown" is having edible only
+- ring_number "two" is having more of edible, "none" is having poisonous only
+- ring_type "none"/"large" is having poisonous only, "flaring" is having edible only
+- spore_print_color "yellow"/"purple"/"orange"/"buff" is having edible only, "green" is having poisonous only
+- population "numerous"/"abundant" is having edible only
+- habitat "waste" is having edible only
+
+#### Convert from categorical to numeric
+
+```{r}
+
+library(dummies)
+
+mushrooms1 <- dummy.data.frame(mushrooms[,-1],sep='.')
+mushrooms1 <- mushrooms1 %>% mutate(class=mushrooms[,'class'])
+
+dim(mushrooms1)
+
+
+```
+
+### Spliting training set into two parts based on outcome: 75% and 25%
+
+```{r}
+
+set.seed(100)
+index <- createDataPartition(mushrooms1$class, p=0.75, list=FALSE)
+trainSet <- mushrooms1[ index,]
+testSet <- mushrooms1[-index,]
+
+```
+
+
+###Defining the predictors and outcome
+
+```{r}
+
+predictors1 <- names(mushrooms1 %>% select(-c(class)))
+
+
+outcomeName<-'class'
+
+```
+
+### PCA
+
+```{r}
+
+#principal component analysis
+prin_comp <- prcomp(trainSet[,predictors1],scale. = T)
+
+names(prin_comp)
+
+```
+
+
+### PCA plots
+
+```{r}
+
+biplot(prin_comp,scale=0)
+
+
+#compute standard deviation of each principal component
+std_dev <- prin_comp$sdev
+
+#compute variance
+pr_var <- std_dev^2
+
+#proportion of variance explained
+prop_varex <- pr_var/sum(pr_var)
+ 
+#scree plot
+plot(prop_varex, xlab = "Principal Component",
+             ylab = "Proportion of Variance Explained",
+             type = "b")
+
+#cumulative scree plot
+plot(cumsum(prop_varex), xlab = "Principal Component",
+              ylab = "Cumulative Proportion of Variance Explained",
+              type = "b")
+
+summary(prin_comp)
+
+```
+
+
+
+
+### Creating test and train data with PCA components that contributed to 90% in variance
+
+```{r}
+
+#add a training set with principal components
+trainSet1 <- data.frame(class = trainSet[,outcomeName], prin_comp$x)
+
+#we are interested in PCAs that capture 90% of the variance
+idx <- which(cumsum(prop_varex)>=0.90)[1]                                                                                                     
+
+#train data
+trainSet1 <- trainSet1[,1:(idx+1)]
+
+#transform test into PCA
+testSet1 <- predict(prin_comp, newdata = testSet[,predictors1])
+testSet1 <- as.data.frame(testSet1)
+
+#select the components that contributed for 90% of variance
+testSet1 <- testSet1[,1:idx]
+testSet1 <- data.frame(class = testSet[,outcomeName], testSet1)
+
+
+```
+
+
+### Defining the training controls for multiple models
+
+```{r}
+#using 5-fold cross validation
+fitControl <- trainControl(
+  method = "cv",
+  number = 5,
+  savePredictions = 'final',
+  summaryFunction=twoClassSummary,
+  classProbs = T)
+
+```
+
+
+
+### Initializing the table
+
+```{r}
+prediction <<- data.frame()
+
+predictors <- names(trainSet1 %>% select(-c(class)))
+
+```
+
+
+```{r}
+
+#Training the logistic regression model
+
+set.seed(101)
+model_lr<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='glm',metric="ROC",trControl=fitControl)
+model_lr
+
+#Predicting using logistic regression
+predict_model_lr<-predict(model_lr,testSet1[,predictors],type="prob")$p
+
+# roc and auc
+roc.lrModel <- pROC::roc(testSet1$class, predict_model_lr)
+auc.lrModel <- pROC::auc(roc.lrModel)
+
+auc.lrModel
+
+
+```
+
+
+```{r}
+
+#Training the rpart model/decision tree
+
+set.seed(101)
+model_rpart<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='rpart',metric="ROC",trControl=fitControl)
+model_rpart
+
+#Predicting using rpart model
+predict_model_rpart<-predict(model_rpart,testSet1[,predictors],type="prob")$p
+
+# roc and auc
+roc.rpartModel <- pROC::roc(testSet1$class, predict_model_rpart)
+auc.rpartModel <- pROC::auc(roc.rpartModel)
+
+auc.rpartModel
+
+
+```
+
+```{r}
+
+#Training the random forest model
+
+set.seed(101)
+model_rf<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='rf',metric="ROC",trControl=fitControl,importance=TRUE)
+model_rf
+
+#Predicting using random forest model
+predict_model_rf<-predict(model_rf,testSet1[,predictors],type="prob")$p
+
+# roc and auc
+roc.rfModel <- pROC::roc(testSet1$class, predict_model_rf)
+auc.rfModel <- pROC::auc(roc.rfModel)
+
+auc.rfModel
+
+
+```
+
+### Plot the error in random forest model
+
+```{r}
+
+#plot the error
+plot(model_rf$finalModel)
+
+```
+
+#### plot the top 10 variables for random forest model
+
+```{r}
+varImpPlot(model_rf$finalModel,n.var=10)
+
+```
+
+```{r}
+
+#Training the knn
+
+set.seed(101)
+model_knn<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='knn',metric="ROC",trControl=fitControl)
+model_knn
+
+#Predicting using knn
+predict_model_knn<-predict(model_knn,testSet1[,predictors],type="prob")$p
+
+# roc and auc
+roc.knnModel <- pROC::roc(testSet1$class, predict_model_knn)
+auc.knnModel <- pROC::auc(roc.knnModel)
+
+auc.knnModel
+
+
+```
+
+
+```{r}
+
+#Training the naive bayes model
+
+set.seed(101)
+model_nb<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='nb',metric="ROC",trControl=fitControl)
+model_nb
+
+#Predicting using naive bayes model
+predict_model_nb<-predict(model_nb,testSet1[,predictors],type="prob")$p
+
+# roc and auc
+roc.nbModel <- pROC::roc(testSet1$class, predict_model_nb)
+auc.nbModel <- pROC::auc(roc.nbModel)
+
+auc.nbModel
+
+
+```
+
+
+
+
+```{r}
+
+#Training the svm model
+
+set.seed(101)
+model_svm<-train(trainSet1[,predictors],trainSet1[,outcomeName],method='svmLinear',metric="ROC",trControl=fitControl)
+model_svm
+
+#Predicting using svm model
+predict_model_svm<-predict(model_svm,testSet1[,predictors],type="prob")$p
+
+# roc and auc
+roc.svmModel <- pROC::roc(testSet1$class, predict_model_svm)
+auc.svmModel <- pROC::auc(roc.svmModel)
+
+auc.svmModel
+
+
+```
+
+
+#### choose the best model
+
+```{r}
+test.auc <- data.frame(model=c("lin_reg","dec_tree","random_for","k-nearest","naive_bayes","support_vector"),auc=c(auc.lrModel, auc.rpartModel, auc.rfModel, auc.knnModel, auc.nbModel, auc.svmModel))
+
+test.auc <- test.auc[order(test.auc$auc, decreasing=TRUE),]
+
+test.auc$model <- factor(test.auc$model, levels=test.auc$model)
+
+test.auc
+
+
+
+```
+
+```{r}
+library(ggplot2)
+ggplot(test.auc,aes(model,auc,fill=model))+geom_bar(stat = 'identity')+geom_text(aes(label=round(auc,4)), vjust=1.5,colour="white")
+
+```
+
+
+Conclusion:
+
+- The best models are random forest, k-nearest and support vector machines.
+- Can choose random forest for better interpretability.
+
+#### Visualizing ouput by taking 2 most important variables
+
+```{r}
+predict_model_rf1<-predict(model_rf,testSet1[,predictors])
+ggplot(testSet1,aes(PC1,PC10,color=predict_model_rf1))+geom_point()
+
+```
+
+
+
