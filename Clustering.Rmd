@@ -1,0 +1,356 @@
+---
+title: "Clustering the Market Segments"
+output: 
+  html_document: 
+    smart: no
+---
+
+### Project details: 
+
+####Project: Clustering the Market Segments
+####Data: Clustering the Market Segments.csv
+
+https://www.analyticsvidhya.com/blog/2016/03/tutorial-powerful-packages-imputing-missing-values/
+http://www.sthda.com/english/wiki/cluster-analysis-in-r-unsupervised-machine-learning
+
+####Description:
+One way to gain an edge in segmented marketing to identify segments of people who share similar tastes, so that they can avoid targeting advertisements to people with no interest in the product being sold. For instance, an alcoholic beverage is likely to be difficult to sell to people who do not drink.
+Given the text of Social Networking Service (SNS) pages of people, we can identify groups that share common interests such as sports, religion, or music. Clustering can automate the process of discovering the natural segments in this population.
+
+####Objective:
+
+- Cluster a number of products, with related products in one segment
+
+####Guidelines:
+
+- Explore and prepare the data
+- Coding the missing values
+- Imputation on missing values
+- Training model on data
+- Evaluation of model performance and visualization of segments.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(pROC)
+```
+
+### Loading the data
+
+```{r}
+
+market <- read.csv('clustering the Market Segments.csv')
+str(market)
+
+```
+
+
+### check missing values
+
+```{r}
+summary(market)
+
+```
+
+Can infer that there are missing values in:
+
+- gender (1428)
+- age (2400)
+- abercrombie (1)
+- die (1)
+- death (1)
+- drunk (1)
+- drugs (1)
+
+### Stats on missing values
+
+```{r}
+cat('\nThe number of missing values column wise are:',sum(is.na(market)))
+cat('\nThe number of missing values row wise are:',nrow(market)-nrow(na.omit(market)))
+library(VIM)
+summary(aggr(market))
+
+```
+
+### Impute missing values
+- "missForest"" is an implementation of random forest algorithm. It's a non parametric imputation method 
+
+- Non-parametric method does not make explicit assumptions about functional form of f (any arbitary function). Instead, it tries to estimate f such that it can be as close to the data points without seeming impractical.
+
+- It builds a random forest model for each variable. Then it uses the model to predict missing values in the variable with the help of observed values.
+
+- It yield OOB (out of bag) imputation error estimate. Moreover, it provides high level of control on imputation process. It has options to return OOB separately (for each variable) instead of aggregating over the whole data matrix. This helps to look more closely as to how accurately the model has imputed values for each variable.
+
+```{r}
+#install.packages("missForest")
+library(missForest)
+
+#install.packages("doParallel")
+library(doParallel)
+
+registerDoParallel(cores = 2)
+
+
+#impute missing values, we can apply the 'missForest' function while breaking the work down into equal numbers of 'variables' or 'forests' for each core to work on (here we break the number of variables).
+
+market.imp <- missForest(market, parallelize = "variables")
+
+```
+
+### Checking the output from "missforest"
+
+```{r}
+
+#check imputed values
+market1 <- market.imp$ximp
+head(market1)
+
+#check imputation error
+market.imp$OOBerror
+
+#check for missing values
+summary(market1)
+
+```
+
+Can infer that:
+
+- The normalized root mean squared error (NRMSE; for continuous variables) is 0.3%
+- And the second is the proportion falsely classified (PFC; for categorical variables) is 25%
+
+
+```{r}
+glimpse(market1)
+```
+
+Can infer that:
+
+- From the above date, we can make out that other than 4 variables(gradyear, gender,age, friends) the rest all indicate interests/taste of the people. 
+- Thus, it would be logical to proceeded with these 36 variables for solving clustering problem.
+
+### Normalising the data
+
+```{r}
+
+func_norm <- function(x)
+{
+  y <- (x-min(x))/(max(x)-min(x))
+  return (y)
+}
+
+
+market2 <- market1[,5:40]
+
+#market1_norm <- as.data.frame(scale(market2, center = TRUE, scale = TRUE))
+market1_norm <- as.data.frame(sapply(market2,func_norm))
+
+
+```
+
+
+### Heirarchical clustering - Euclidean distance
+
+```{r}
+#using euclidean distance as distance metric
+market_dist <- dist(market1_norm,method='euclidean')
+
+```
+
+```{r}
+#using linkage criteria as "ward.D"
+market_hclust <- hclust(market_dist,method = 'ward.D')
+
+```
+
+### finding optimal no. of clusters using metric of "total within sum of squares"
+
+```{r}
+
+#Calculate the squared difference of every point in the cluster from the centroid, and sum all the distances. 
+#here "cENTER" is true, so it subtractes mean from original data and when resultant value is squared to get squared euclidean distance
+wss <- function(d) {
+  sum(scale(d, scale = FALSE)^2)
+}
+
+
+#to find optimum k value
+
+tot_wss <- NULL
+
+for (k in 1:10)
+{
+  cl <- cutree(market_hclust,k)
+  spl <- split(market1_norm, cl)
+  tot_wss[k] <- sum(sapply(spl, wss))
+}
+
+plot(1:k,tot_wss,type='b',main='choosing best k value',xlab='number of clusters',ylab='total within sum of squares error')
+tot_wss
+
+```
+
+Can infer that:
+
+- Even though increasing K value is decreasing the error, we cannot afford to have a bigger K value.
+- The best K value choosen is 5.
+
+### Trying different methods to find the best method with 5 clusters
+
+```{r}
+hclust_methods <- c("ward.D", "single", "complete", "average", "mcquitty", 
+        "median", "centroid", "ward.D2")
+
+
+for (i in 1:length(hclust_methods))
+{
+  temp <- hclust(market_dist,method = hclust_methods[i])
+  cat('\n',hclust_methods[i],'\n')
+  temp1 <- cutree(temp,5)
+  temp2 <- split(market1_norm, temp1)
+  print(sum(sapply(temp2, wss)))
+}
+
+
+```
+
+Can infer that:
+
+- ward.D2 performs better 
+
+### grouping into 5 clusters using "ward.D2"
+
+```{r}
+
+#using linkage criteria as "ward.D2"
+market_hclust <- hclust(market_dist,method = 'ward.D2')
+
+#grouping into 5 clusters
+groups.5 <- cutree(market_hclust,5)
+
+#number of records in each cluster
+table(groups.5)
+
+```
+
+
+### Plotting (herarchical clustering)
+
+```{r}
+#dendrograms
+plot(market_hclust, labels = FALSE, hang = -1)
+# Add rectangle around 5 groups
+rect.hclust(market_hclust, k = 5)
+
+
+
+#2D representation of the Segmentation
+
+library(cluster)
+clusplot(market1_norm, groups.5, color=TRUE, shade=TRUE, labels=2, lines=0, main= 'Marketting segments')
+
+
+
+#The cluster characterization using pie charts
+#par(mfrow=c(2,2))
+pie(colSums(market1_norm[which(groups.5==1),]),cex=0.5,main='Cluster 1')
+pie(colSums(market1_norm[which(groups.5==2),]),cex=0.5,main='Cluster 2')
+pie(colSums(market1_norm[which(groups.5==3),]),cex=0.5,main='Cluster 3')
+pie(colSums(market1_norm[which(groups.5==4),]),cex=0.5,main='Cluster 4')
+pie(colSums(market1_norm[which(groups.5==5),]),cex=0.5,main='Cluster 5')
+
+
+
+
+```
+
+
+### K means clustering
+
+
+```{r}
+
+#to find optimum k value
+
+tot_wss <- NULL
+
+for (k in 1:10)
+{
+  market_kmeans <- kmeans(market1_norm,k,nstart=30,iter.max = 20)
+  tot_wss[k] <- market_kmeans$tot.withinss
+}
+
+plot(1:k,tot_wss,type='b',main='choosing best k value',xlab='number of clusters',ylab='total within sum of squares error')
+tot_wss
+
+```
+
+
+### grouping into 5 clusters using k means clustering
+
+```{r}
+
+#using k means 
+market_kmeans <- kmeans(market1_norm,5,nstart=30,iter.max = 20)
+
+#grouping into 5 clusters
+groups.5.km <- market_kmeans$cluster
+
+#number of records in each cluster
+table(groups.5.km)
+
+#total within sum of squares
+market_kmeans$tot.withinss
+
+```
+
+
+### Plotting (k means clustering)
+
+```{r}
+
+#2D representation of the Segmentation
+
+library(cluster)
+clusplot(market1_norm, groups.5.km, color=TRUE, shade=TRUE, labels=2, lines=0, main= 'Marketting segments')
+
+
+
+#The cluster characterization using pie charts
+#par(mfrow=c(2,2))
+pie(colSums(market1_norm[which(groups.5.km==1),]),cex=0.5,main='Cluster 1')
+pie(colSums(market1_norm[which(groups.5.km==2),]),cex=0.5,main='Cluster 2')
+pie(colSums(market1_norm[which(groups.5.km==3),]),cex=0.5,main='Cluster 3')
+pie(colSums(market1_norm[which(groups.5.km==4),]),cex=0.5,main='Cluster 4')
+pie(colSums(market1_norm[which(groups.5.km==5),]),cex=0.5,main='Cluster 5')
+
+```
+
+
+
+
+
+```{r}
+
+library(factoextra)
+library(cluster)
+fviz_nbclust(market1_norm, kmeans, method = "gap_stat", iter.max = 20)
+
+```
+
+
+
+
+
+
+
+
+
+
+
