@@ -10,8 +10,6 @@ output:
 ####Project: Clustering the Market Segments
 ####Data: Clustering the Market Segments.csv
 
-https://www.analyticsvidhya.com/blog/2016/03/tutorial-powerful-packages-imputing-missing-values/
-http://www.sthda.com/english/wiki/cluster-analysis-in-r-unsupervised-machine-learning
 
 ####Description:
 One way to gain an edge in segmented marketing to identify segments of people who share similar tastes, so that they can avoid targeting advertisements to people with no interest in the product being sold. For instance, an alcoholic beverage is likely to be difficult to sell to people who do not drink.
@@ -39,7 +37,6 @@ library(tidyr)
 library(dplyr)
 library(ggplot2)
 library(caret)
-library(pROC)
 ```
 
 ### Loading the data
@@ -95,11 +92,12 @@ library(missForest)
 #install.packages("doParallel")
 library(doParallel)
 
-registerDoParallel(cores = 2)
+registerDoParallel(cores = 4)
 
 
 #impute missing values, we can apply the 'missForest' function while breaking the work down into equal numbers of 'variables' or 'forests' for each core to work on (here we break the number of variables).
 
+set.seed(101)
 market.imp <- missForest(market, parallelize = "variables")
 
 ```
@@ -332,24 +330,10 @@ pie(colSums(market1_norm[which(groups.5.km==5),]),cex=0.5,main='Cluster 5')
 
 ```
 
+Conclusion:
 
-
-
-
-```{r}
-
-library(factoextra)
-library(cluster)
-fviz_nbclust(market1_norm, kmeans, method = "gap_stat", iter.max = 20)
-
-```
-
-
-
-
-
-
-
+- K-means with 5 clusters has wss of 711 while heirarchical cluster has wss of 766.
+- So k-means is chosen as the best model for this data.
 
 
 
