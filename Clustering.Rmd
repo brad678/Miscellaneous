@@ -37,7 +37,6 @@ library(tidyr)
 library(dplyr)
 library(ggplot2)
 library(caret)
-library(pROC)
 ```
 
 ### Loading the data
@@ -93,11 +92,12 @@ library(missForest)
 #install.packages("doParallel")
 library(doParallel)
 
-registerDoParallel(cores = 2)
+registerDoParallel(cores = 4)
 
 
 #impute missing values, we can apply the 'missForest' function while breaking the work down into equal numbers of 'variables' or 'forests' for each core to work on (here we break the number of variables).
 
+set.seed(101)
 market.imp <- missForest(market, parallelize = "variables")
 
 ```
@@ -330,6 +330,17 @@ pie(colSums(market1_norm[which(groups.5.km==5),]),cex=0.5,main='Cluster 5')
 
 ```
 
+Conclusion:
+
+- K-means with 5 clusters has wss of 711 while heirarchical cluster has wss of 766.
+- So k-means is chosen as the best model for this data.
+
+
+
+
+
+
+### Best K value (K means clustering)
 
 ```{r}
 
@@ -341,7 +352,7 @@ sil <- rep(0, k.max)
 # k = 2 to k = 8
 for(i in 2:k.max){
   km.res <- kmeans(data, centers = i, nstart = 25,iter.max = 20)
-  ss <- silhouette(km.res$cluster, dist(data))
+  ss <- silhouette(km.res$cluster, dist(data,"manhattan"))
   sil[i] <- mean(ss[, 3])
 }
 # Plot the  average silhouette width
@@ -351,6 +362,7 @@ abline(v = which.max(sil), lty = 2)
 
 ```
 
+### Best K value (Hierarchical clustering)
 
 ```{r}
 
@@ -363,7 +375,7 @@ sil1 <- rep(0, k.max)
 for(i in 2:k.max){
   hc.res <- hclust(dist(data),method = 'ward.D2')
   temp1 <- cutree(hc.res,i)
-  ss <- silhouette(temp1, dist(data))
+  ss <- silhouette(temp1, dist(data,"manhattan"))
   sil1[i] <- mean(ss[, 3])
 }
 # Plot the  average silhouette width
@@ -374,42 +386,92 @@ abline(v = which.max(sil1), lty = 2)
 ```
 
 
-
-
-
-
-
-
+### Best K value (PAM clustering)
 
 ```{r}
 
 library(cluster)
 k.max <- 8
 data <- market1_norm
-sil1 <- rep(0, k.max)
-t_sil <- NULL
-sil1_meth <- NULL
-hclust_methods <- c("ward.D", "single", "complete", "average", "mcquitty", 
-        "median", "centroid", "ward.D2")
+sil2 <- rep(0, k.max)
 # Compute the average silhouette width for 
 # k = 2 to k = 8
 for(i in 2:k.max){
-  for(j in 1:8)
-  {
-    hc.res <- hclust(dist(data),method = hclust_methods[j])
-    temp1 <- cutree(hc.res,i)
-    
-    ss <- silhouette(temp1, dist(data))
-    t_sil[j] <- mean(ss[, 3])
-    
-  }
-  sil1[i] <- max(t_sil)
-  sil1_meth[i] <- which.max(t_sil)
+  pm.res <- pam(data, i)
+  ss <- silhouette(pm.res$clustering, dist(data,"manhattan"))
+  sil2[i] <- mean(ss[, 3])
 }
 # Plot the  average silhouette width
-plot(1:k.max, sil1, type = "b", pch = 19, 
-     frame = FALSE, xlab = "Number of clusters k",main='Heirarchical clustering')
-abline(v = which.max(sil1), lty = 2)
+plot(1:k.max, sil2, type = "b", pch = 19, 
+     frame = FALSE, xlab = "Number of clusters k",main='PAM clustering')
+abline(v = which.max(sil2), lty = 2)
 
 ```
+
+### Avg. silhouette width of various models
+
+```{r}
+max(sil)  #k means (2 clusters)
+max(sil1) # hierarchical (2 clusters)
+max(sil2) # pam (2 clusters)
+
+```
+
+### Choosing the best model
+
+```{r}
+max(sil,sil1,sil2)
+```
+
+Can infer that:
+
+- Thes best model is that of k means cluster with 2 clusters
+
+### The best model
+
+```{r}
+
+data <- market1_norm
+
+#hc.res <- hclust(dist(data),method = 'ward.D2')
+km.res <- kmeans(data, centers = 2, nstart = 25,iter.max = 20)
+
+#grouping into 2 clusters
+groups.2 <- cutree(km.res,2)
+
+#number of records in each cluster
+table(groups.2)
+
+```
+
+
+
+
+### Plotting (herarchical clustering)
+
+```{r}
+#dendrograms
+plot(hc.res, labels = FALSE, hang = -1)
+# Add rectangle around 5 groups
+rect.hclust(hc.res, k = 2)
+
+
+
+#2D representation of the Segmentation
+
+library(cluster)
+clusplot(market1_norm, groups.2, color=TRUE, shade=TRUE, labels=2, lines=0, main= 'Marketting segments')
+
+
+
+#The cluster characterization using pie charts
+
+pie(colSums(market1_norm[which(groups.2==1),]),cex=0.5,main='Cluster 1')
+pie(colSums(market1_norm[which(groups.2==2),]),cex=0.5,main='Cluster 2')
+
+```
+
+
+
+
 
