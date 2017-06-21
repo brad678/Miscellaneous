@@ -37,6 +37,7 @@ library(tidyr)
 library(dplyr)
 library(ggplot2)
 library(caret)
+library(pROC)
 ```
 
 ### Loading the data
@@ -92,12 +93,11 @@ library(missForest)
 #install.packages("doParallel")
 library(doParallel)
 
-registerDoParallel(cores = 4)
+registerDoParallel(cores = 2)
 
 
 #impute missing values, we can apply the 'missForest' function while breaking the work down into equal numbers of 'variables' or 'forests' for each core to work on (here we break the number of variables).
 
-set.seed(101)
 market.imp <- missForest(market, parallelize = "variables")
 
 ```
@@ -151,193 +151,6 @@ market1_norm <- as.data.frame(sapply(market2,func_norm))
 
 
 ```
-
-
-### Heirarchical clustering - Euclidean distance
-
-```{r}
-#using euclidean distance as distance metric
-market_dist <- dist(market1_norm,method='euclidean')
-
-```
-
-```{r}
-#using linkage criteria as "ward.D"
-market_hclust <- hclust(market_dist,method = 'ward.D')
-
-```
-
-### finding optimal no. of clusters using metric of "total within sum of squares"
-
-```{r}
-
-#Calculate the squared difference of every point in the cluster from the centroid, and sum all the distances. 
-#here "cENTER" is true, so it subtractes mean from original data and when resultant value is squared to get squared euclidean distance
-wss <- function(d) {
-  sum(scale(d, scale = FALSE)^2)
-}
-
-
-#to find optimum k value
-
-tot_wss <- NULL
-
-for (k in 1:10)
-{
-  cl <- cutree(market_hclust,k)
-  spl <- split(market1_norm, cl)
-  tot_wss[k] <- sum(sapply(spl, wss))
-}
-
-plot(1:k,tot_wss,type='b',main='choosing best k value',xlab='number of clusters',ylab='total within sum of squares error')
-tot_wss
-
-```
-
-Can infer that:
-
-- Even though increasing K value is decreasing the error, we cannot afford to have a bigger K value.
-- The best K value choosen is 5.
-
-### Trying different methods to find the best method with 5 clusters
-
-```{r}
-hclust_methods <- c("ward.D", "single", "complete", "average", "mcquitty", 
-        "median", "centroid", "ward.D2")
-
-
-for (i in 1:length(hclust_methods))
-{
-  temp <- hclust(market_dist,method = hclust_methods[i])
-  cat('\n',hclust_methods[i],'\n')
-  temp1 <- cutree(temp,5)
-  temp2 <- split(market1_norm, temp1)
-  print(sum(sapply(temp2, wss)))
-}
-
-
-```
-
-Can infer that:
-
-- ward.D2 performs better 
-
-### grouping into 5 clusters using "ward.D2"
-
-```{r}
-
-#using linkage criteria as "ward.D2"
-market_hclust <- hclust(market_dist,method = 'ward.D2')
-
-#grouping into 5 clusters
-groups.5 <- cutree(market_hclust,5)
-
-#number of records in each cluster
-table(groups.5)
-
-```
-
-
-### Plotting (herarchical clustering)
-
-```{r}
-#dendrograms
-plot(market_hclust, labels = FALSE, hang = -1)
-# Add rectangle around 5 groups
-rect.hclust(market_hclust, k = 5)
-
-
-
-#2D representation of the Segmentation
-
-library(cluster)
-clusplot(market1_norm, groups.5, color=TRUE, shade=TRUE, labels=2, lines=0, main= 'Marketting segments')
-
-
-
-#The cluster characterization using pie charts
-#par(mfrow=c(2,2))
-pie(colSums(market1_norm[which(groups.5==1),]),cex=0.5,main='Cluster 1')
-pie(colSums(market1_norm[which(groups.5==2),]),cex=0.5,main='Cluster 2')
-pie(colSums(market1_norm[which(groups.5==3),]),cex=0.5,main='Cluster 3')
-pie(colSums(market1_norm[which(groups.5==4),]),cex=0.5,main='Cluster 4')
-pie(colSums(market1_norm[which(groups.5==5),]),cex=0.5,main='Cluster 5')
-
-
-
-
-```
-
-
-### K means clustering
-
-
-```{r}
-
-#to find optimum k value
-
-tot_wss <- NULL
-
-for (k in 1:10)
-{
-  market_kmeans <- kmeans(market1_norm,k,nstart=30,iter.max = 20)
-  tot_wss[k] <- market_kmeans$tot.withinss
-}
-
-plot(1:k,tot_wss,type='b',main='choosing best k value',xlab='number of clusters',ylab='total within sum of squares error')
-tot_wss
-
-```
-
-
-### grouping into 5 clusters using k means clustering
-
-```{r}
-
-#using k means 
-market_kmeans <- kmeans(market1_norm,5,nstart=30,iter.max = 20)
-
-#grouping into 5 clusters
-groups.5.km <- market_kmeans$cluster
-
-#number of records in each cluster
-table(groups.5.km)
-
-#total within sum of squares
-market_kmeans$tot.withinss
-
-```
-
-
-### Plotting (k means clustering)
-
-```{r}
-
-#2D representation of the Segmentation
-
-library(cluster)
-clusplot(market1_norm, groups.5.km, color=TRUE, shade=TRUE, labels=2, lines=0, main= 'Marketting segments')
-
-
-
-#The cluster characterization using pie charts
-#par(mfrow=c(2,2))
-pie(colSums(market1_norm[which(groups.5.km==1),]),cex=0.5,main='Cluster 1')
-pie(colSums(market1_norm[which(groups.5.km==2),]),cex=0.5,main='Cluster 2')
-pie(colSums(market1_norm[which(groups.5.km==3),]),cex=0.5,main='Cluster 3')
-pie(colSums(market1_norm[which(groups.5.km==4),]),cex=0.5,main='Cluster 4')
-pie(colSums(market1_norm[which(groups.5.km==5),]),cex=0.5,main='Cluster 5')
-
-```
-
-Conclusion:
-
-- K-means with 5 clusters has wss of 711 while heirarchical cluster has wss of 766.
-- So k-means is chosen as the best model for this data.
-
-
-
-
 
 
 ### Best K value (K means clustering)
@@ -437,25 +250,25 @@ data <- market1_norm
 km.res <- kmeans(data, centers = 2, nstart = 25,iter.max = 20)
 
 #grouping into 2 clusters
-groups.2 <- cutree(km.res,2)
+groups.2 <- km.res$cluster
 
 #number of records in each cluster
 table(groups.2)
 
 ```
 
-
-
-
-### Plotting (herarchical clustering)
+### Plotting silhouette values
 
 ```{r}
-#dendrograms
-plot(hc.res, labels = FALSE, hang = -1)
-# Add rectangle around 5 groups
-rect.hclust(hc.res, k = 2)
+ss <- silhouette(km.res$cluster, dist(data,"manhattan"))
+ggplot(market1_norm,aes(as.factor(km.res$cluster),ss[,3],fill=as.factor(km.res$cluster)))+geom_violin()+coord_flip()+labs(y='Silhouette Value',x='Cluster',main='Silhouette Values for various clusters')
+
+```
 
 
+### Plotting (k means clustering)
+
+```{r}
 
 #2D representation of the Segmentation
 
@@ -470,6 +283,9 @@ pie(colSums(market1_norm[which(groups.2==1),]),cex=0.5,main='Cluster 1')
 pie(colSums(market1_norm[which(groups.2==2),]),cex=0.5,main='Cluster 2')
 
 ```
+
+
+
 
 
 
