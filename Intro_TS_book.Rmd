@@ -466,3 +466,116 @@ mean(DP) + c(-2, 2) * sd(DP)/sqrt(length(DP))
 ```
 
 
+### AR
+
+```{r}
+set.seed(1)
+x <- w <- rnorm(100)
+for (t in 2:100) x[t] <- 0.7 * x[t - 1] + w[t]
+plot(x, type = "l")
+acf(x)
+pacf(x)
+
+```
+
+
+```{r}
+x.ar <- ar(x, method = "mle")
+
+x.ar$order
+x.ar$ar
+x.ar$aic
+x.ar$ar + c(-2, 2) * sqrt(x.ar$asy.var)
+
+```
+
+```{r}
+
+Z.ar <- ar(Z.ts)
+
+```
+
+```{r}
+Z.ar$order
+mean(Z.ts)
+Z.ar$ar
+
+Z.ar$ar + c(-2, 2) * sqrt(Z.ar$asy.var.coef)
+acf(Z.ar$res[-1])
+pacf(Z.ar$res[-1])
+
+```
+
+
+### Global temperature series: Fitted AR model
+
+```{r}
+
+plot(Global.ts)
+plot(aggregate(Global.ts,FUN = mean))
+
+Global.ar <- ar(aggregate(Global.ts, FUN = mean), method = "mle")
+mean(aggregate(Global.ts, FUN = mean))
+Global.ar$order
+Global.ar$ar
+
+acf(Global.ar$res, na.action=na.pass,lag=50)
+pacf(Global.ar$res, na.action=na.pass)
+
+```
+
+
+### Regression
+
+```{r}
+
+set.seed(1)
+z <- w <- rnorm(100, sd = 20)
+for (t in 2:100) z[t] <- 0.8 * z[t - 1] + w[t]
+Time <- 1:100
+x <- 50 + 3 * Time + z
+plot(x, xlab = "time", type = "l")
+
+
+```
+
+
+```{r}
+
+x.lm <- lm(x ~ Time)
+summary(x.lm)
+
+acf(x.lm$residuals)
+pacf(x.lm$residuals)
+
+```
+
+
+```{r}
+
+temp <- window(Global.ts, start = 1970)
+plot(temp)
+
+temp.lm <- lm(temp ~ time(temp))
+summary(temp.lm)
+
+coef(temp.lm)
+confint(temp.lm)
+
+acf(temp.lm$residuals,lag=50)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
