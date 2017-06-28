@@ -568,14 +568,64 @@ acf(temp.lm$residuals,lag=50)
 ```
 
 
+### GLS
+
+```{r}
+
+ar1 <- acf(temp.lm$residuals,lag=50)
+ar1$acf[2]
+
+temp.gls <- gls(temp ~ time(temp), cor = corAR1(ar1$acf[2]))
+
+summary(temp.gls)
+
+temp.gls$coefficients
+coef(temp.gls)
+confint(temp.gls)
+
+
+
+```
+
+
+
+```{r}
+Seas <- cycle(temp)
+Time <- time(temp)
+temp.lm <- lm(temp ~ 0 + Time + factor(Seas))
+
+summary(temp.lm)
+
+
+ar1 <- acf(temp.lm$residuals)
+ar1$acf[2]
+
+temp.gls1 <- gls(temp ~ 0 + Time + factor(Seas), cor = corAR1(ar1$acf[2]))
+
+summary(temp.gls1)
+
+#prediction
+new.t <- seq(2006, len = 2 * 12, by = 1/12)
+new.dat <- data.frame(Time = new.t, Seas = rep(1:12, 2))
+predict(temp.lm, new.dat)
+
+```
 
 
 
 
 
+```{r}
+
+SIN <- COS <- matrix(nr = length(temp), nc = 6)
+for (i in 1:6) 
+{
+  COS[, i] <- cos(2 * pi * i * time(temp))
+  SIN[, i] <- sin(2 * pi * i * time(temp))
+}
 
 
-
+```
 
 
 
