@@ -675,5 +675,57 @@ hist(wave.arma$residuals, xlab='height / mm', main='')
 ```
 
 
+### ARCH
+
+
+```{r}
+library(MASS)
+data(SP500)
+plot(SP500, type = 'l')
+acf(SP500)
+
+acf((SP500 - mean(SP500))^2)
+
+
+```
+
+### GARCH
+
+```{r}
+library(tseries)
+sp.garch <- garch(SP500, trace = F)
+summary(sp.garch)
+ 
+acf(sp.garch$residuals,na.action = na.pass)
+acf((sp.garch$residuals)^2,na.action = na.pass)
+```
+
+
+```{r}
+
+#stemp <- read.table('stemp.dat', header = TRUE)
+stemp <- scan('stemp.dat')
+stemp.ts <- ts(stemp, start = 1850, freq = 12)
+plot(stemp.ts)
+
+stemp.arima <- auto.arima(stemp.ts)
+summary(stemp.arima)
+
+confint(stemp.arima)
+
+acf(stemp.arima$residuals)
+acf((stemp.arima$residuals)^2)
+
+stemp.garch <- garch(stemp.arima$residuals, trace = F)
+confint(stemp.garch)
+
+acf(stemp.garch$residuals,na.action = na.pass)
+acf((stemp.garch$residuals)^2,na.action = na.pass)
+  
+
+
+```
+
+
 
 
