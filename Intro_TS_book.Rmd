@@ -568,6 +568,7 @@ acf(temp.lm$residuals,lag=50)
 ```
 
 
+
 ### GLS
 
 ```{r}
@@ -600,6 +601,7 @@ summary(temp.lm)
 ar1 <- acf(temp.lm$residuals)
 ar1$acf[2]
 
+library(nlme)
 temp.gls1 <- gls(temp ~ 0 + Time + factor(Seas), cor = corAR1(ar1$acf[2]))
 
 summary(temp.gls1)
@@ -613,19 +615,65 @@ predict(temp.lm, new.dat)
 
 
 
+### MA(q)
+
+```{r}
+
+x.ma <- arima(Z.ts, order = c(0, 0, 1))
+x.ma
+
+acf(x.ma$res,na.action = na.pass)
+
+```
+
+### ARMA
+
+```{r}
+x.arma <- arima(Z.ts, order = c(1, 0, 1))
+x.arma
+
+acf(x.arma$residuals)
+
+```
+
 
 
 ```{r}
 
-SIN <- COS <- matrix(nr = length(temp), nc = 6)
-for (i in 1:6) 
+best_order <- c(0,0,0)
+best_aic <- Inf
+
+for (p in 0:5)
 {
-  COS[, i] <- cos(2 * pi * i * time(temp))
-  SIN[, i] <- sin(2 * pi * i * time(temp))
+  for (q in 0:5)
+  {
+    #best_order <- c(p,0,q)
+    temp <- AIC(arima(waveht, order = c(p,0,q)))
+    if (temp < best_aic)
+    {
+      best_aic <- temp
+      best_order <- c(p,0,q)
+    }
+  }
 }
+
+list(best_order,best_aic)
+
+```
+
+```{r}
+
+wave.arma <- arima(waveht, order = c(4,0,4))
+wave.arma
+
+acf(wave.arma$residuals)
+
+pacf(wave.arma$residuals)
+hist(wave.arma$residuals, xlab='height / mm', main='')
 
 
 ```
+
 
 
 
