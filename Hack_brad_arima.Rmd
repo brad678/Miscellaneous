@@ -1,0 +1,122 @@
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(dplyr)
+library(forecast)
+library(TTR)
+library(Metrics)
+library(tidyr)
+library(dplyr)
+library(zoo)
+library(hydroGOF)
+```
+
+
+
+```{r}
+
+train <- read.csv('train.csv')
+test <- read.csv('test.csv')
+
+glimpse(train)
+
+
+```
+
+
+```{r}
+
+quantile(train$Price, probs = seq(0, 1, 0.05))
+quantile(train$Number_Of_Sales, probs = seq(0, 1, 0.05))
+```
+
+
+
+```{r}
+
+train_items <- unique(train$Item_ID)
+test_items <- unique(test$Item_ID)
+
+```
+
+```{r}
+set.seed(2)
+for (i in 1:5)
+{
+  k <- sample(train_items,1)
+  plot(ts(train[train$Item_ID==k,]$Price,frequency=365,start=c(2014,1,1)),ylab="Price",main="TS price")
+  plot(ts(train[train$Item_ID==k,]$Number_Of_Sales,frequency=365,start=c(2014,1,1)),ylab="Sales",main="TS sales")
+  plot(diff(ts(train[train$Item_ID==k,]$Price,frequency=365,start=c(2014,1,1)),differences = 2),ylab="Price",main="TS 2nd order differencing price")
+  plot(diff(ts(train[train$Item_ID==k,]$Number_Of_Sales,frequency=365,start=c(2014,1,1)),differences = 2),ylab="Sales",main="TS 2nd order differencing sales")
+  
+}
+
+```
+
+
+
+```{r}
+
+NRMSE_arima_p <- NULL
+NRMSE_arima_s <- NULL
+
+```
+
+
+### Auto ARIMA
+
+```{r}
+
+
+for (i in 1:length(train_items))
+{
+  
+  temp <- train[train$Item_ID==train_items[i],]
+
+  temp.ts.p <- ts(temp[,7],frequency =365, start=c(2014,1,1))
+  temp.ts.s <- ts(temp[,8],frequency =365, start=c(2014,1,1))
+
+  #ARIMA for price and sales
+  ARIMA_model_p <- auto.arima(temp.ts.p)
+  ARIMA_model_s <- auto.arima(temp.ts.s)
+  
+  NRMSE_arima_p[i] <- nrmse(ARIMA_model_p$fitted,temp.ts.p)
+  NRMSE_arima_s[i] <- nrmse(ARIMA_model_s$fitted,temp.ts.s)
+  
+  
+  temp <- test[test$Item_ID==train_items[i],]
+  
+  if (nrow(temp)>0)
+  {
+    pred_price <- forecast(ARIMA_model_p,184)$mean
+    pred_price <- forecast(ARIMA_model_p,184)$mean
+    test_op <- data.frame(ID=temp[,6],Number_Of_Sales=pred_sales,Price=pred_price)
+    write.table(test_op, "testop.csv", sep = ",", append = T,col.names = F)
+  }
+  
+  if (i%%10==0)
+  {
+    print(i)
+  }
+
+}
+
+```
+
+
+```{r}
+mean(NRMSE_arima_p)
+mean(NRMSE_arima_s)
+
+```
+
+Conclusion:
+Total error = 88.41688
+
+
+
+
