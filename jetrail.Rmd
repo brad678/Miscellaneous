@@ -1,0 +1,680 @@
+---
+title: "JetRail"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+https://github.com/sauravkaushik8/Fractal-Analytics-Hackathon/blob/master/Fractal%20Hack%20Script.R
+
+
+```{r}
+library(tidyr)
+library(dplyr)
+library(forecast)
+library(TTR)
+library(Metrics)
+library(dplyr)
+library(zoo)
+library(ggplot2)
+library(readr)
+library(xts)
+library(smooth)
+
+```
+
+
+```{r}
+train <- read_csv('Train_SU63ISt.csv')
+
+```
+
+```{r}
+test <- read_csv("Test_0qrQsBZ.csv")
+```
+
+```{r}
+
+time_index <- seq(from = as.POSIXct("2012-08-25 00:00"), to = as.POSIXct("2014-09-25 23:00"), by = "hour")
+
+train_hr <- xts(train$Count, order.by = time_index)
+
+head(train_hr);tail(train_hr);
+
+```
+
+```{r}
+plot(train_hr)
+```
+
+```{r}
+
+x <- msts(train$Count, seasonal.periods=c(24,24*7,365.25*24), start=2012+34/52)
+plot(x)
+
+```
+
+#decomposition
+```{r}
+
+stl1 <- stl(x,s.window = "periodic")
+plot(stl1)
+
+```
+
+### Simple moving average
+
+```{r}
+
+#SMA
+SMA_test <- sma(x, h=nrow(test),silent="graph")
+
+test_op <- data.frame(ID=test$ID,Count=SMA_test$forecast)
+
+colnames(test_op) <- c("ID","Count")
+```
+
+```{r}
+
+dir <- "C:\\Users\\Srimala Bharadwaj\\Desktop\\Data science\\AV\\JetRail"
+write_csv(test_op, file.path(dir, "sma.csv"), col_names = TRUE)
+
+
+```
+
+
+### Simple moving average 1
+
+```{r}
+
+#SMA
+SMA_test1 <- sma(x, ic=c("BIC"),h=nrow(test),silent="graph", holdout = TRUE, accuracy="sMSE")
+
+test_op <- data.frame(test$ID, SMA_test1$forecast)
+
+colnames(test_op) <- c("ID","Count")
+```
+
+```{r}
+
+dir <- "C:\\Users\\Srimala Bharadwaj\\Desktop\\Data science\\AV\\JetRail"
+write_csv(test_op, file.path(dir, "sma1.csv"), col_names = TRUE)
+
+
+```
+
+
+### tslm - add
+
+```{r}
+
+#SMA
+tslm_add <- tslm(x ~ trend + season)
+summary(tslm_add)
+#test_op <- data.frame(test$ID, SMA_test1$forecast)
+
+#colnames(test_op) <- c("ID","Count")
+```
+
+```{r}
+
+
+f1 <- forecast(tslm_add,h=nrow(test))
+#f1 <- predict(tslm_add,n.ahead=nrow(test))
+
+```
+
+```{r}
+test_op <- data.frame(test$ID, f1$mean)
+
+colnames(test_op) <- c("ID","Count")
+```
+
+
+```{r}
+
+dir <- "C:\\Users\\Srimala Bharadwaj\\Desktop\\Data science\\AV\\JetRail"
+write_csv(test_op, file.path(dir, "tslm1.csv"), col_names = TRUE)
+
+
+```
+
+
+
+### tslm - add
+
+```{r}
+
+#SMA
+tslm_add1 <- tslm(x ~ trend)
+summary(tslm_add1)
+#test_op <- data.frame(test$ID, SMA_test1$forecast)
+
+#colnames(test_op) <- c("ID","Count")
+```
+
+```{r}
+
+
+f1 <- forecast(tslm_add1,h=nrow(test))
+#f1 <- predict(tslm_add,n.ahead=nrow(test))
+
+```
+
+```{r}
+test_op <- data.frame(test$ID, f1$mean)
+
+colnames(test_op) <- c("ID","Count")
+```
+
+
+```{r}
+
+dir <- "C:\\Users\\Srimala Bharadwaj\\Desktop\\Data science\\AV\\JetRail"
+write_csv(test_op, file.path(dir, "tslm2.csv"), col_names = TRUE)
+
+
+```
+
+
+```{r}
+#ar1 <- acf(tslm_add$residuals)
+#ar1$acf[2]
+
+#library(nlme)
+
+#tslm_gls <- gls(x ~ time(x) ,cor=corAR1(ar1$acf[2]))
+tslm_add2 <- tslm(x ~ time(x))
+summary(tslm_add2)
+
+
+```
+
+```{r}
+
+
+#f1 <- forecast(tslm_add2,h=nrow(test))
+f1 <- predict(tslm_add2,n.ahead=nrow(test))
+
+```
+
+```{r}
+test_op <- data.frame(test$ID, f1$mean)
+
+colnames(test_op) <- c("ID","Count")
+```
+
+
+```{r}
+
+dir <- "C:\\Users\\Srimala Bharadwaj\\Desktop\\Data science\\AV\\JetRail"
+write_csv(test_op, file.path(dir, "tslm3.csv"), col_names = TRUE)
+
+
+```
+
+#arima
+```{r}
+
+arima_1 <- auto.arima(x)
+summary(arima_1)
+
+```
+
+```{r}
+
+
+f1 <- forecast(arima_1,h=nrow(test))
+#f1 <- predict(tslm_add2,n.ahead=nrow(test))
+
+```
+
+```{r}
+test_op <- data.frame(test$ID, f1$mean)
+
+colnames(test_op) <- c("ID","Count")
+```
+
+
+```{r}
+
+dir <- "C:\\Users\\Srimala Bharadwaj\\Desktop\\Data science\\AV\\JetRail"
+write_csv(test_op, file.path(dir, "arima1.csv"), col_names = TRUE)
+
+
+```
+
+#tbats
+```{r}
+
+tbats_1 <- tbats(x)
+summary(tbats)
+
+```
+
+```{r}
+
+
+f1 <- forecast(arima_1,h=nrow(test))
+#f1 <- predict(tslm_add2,n.ahead=nrow(test))
+
+```
+
+```{r}
+test_op <- data.frame(test$ID, f1$mean)
+
+colnames(test_op) <- c("ID","Count")
+```
+
+
+```{r}
+
+dir <- "C:\\Users\\Srimala Bharadwaj\\Desktop\\Data science\\AV\\JetRail"
+write_csv(test_op, file.path(dir, "arima1.csv"), col_names = TRUE)
+
+
+```
+
+
+```{r}
+
+train1_hr <- to.hourly(train_hr)
+train2_hr <- ts(as.vector(train1_hr[,4]),start=c(2012,08,25),end=c(2014,09,25),frequency = 24)
+train2_hr
+
+```
+
+
+```{r}
+
+#SMA
+
+x2 <- ts(train$Count, frequency=24*7)
+time(x2)
+
+SMA_test4 <- sma(x2, h=nrow(test),silent="graph")
+
+test_op <- data.frame(ID=test$ID,Count=SMA_test4$forecast)
+
+colnames(test_op) <- c("ID","Count")
+```
+
+```{r}
+
+#dir <- "D:\\Users\\bharadwaj\\Desktop\\DS\\Datasets\\AV"
+write_csv(test_op, file.path(dir, "sma3.csv"), col_names = TRUE)
+
+
+```
+
+
+### Simple moving average 1
+
+```{r}
+
+#SMA
+SMA_test1 <- sma(x, ic=c("BIC"),h=nrow(test),silent="graph", holdout = TRUE, accuracy="sMSE")
+
+test_op <- data.frame(test$ID, SMA_test1$forecast)
+
+colnames(test_op) <- c("ID","Count")
+```
+
+```{r}
+
+dir <- "C:\\Users\\Srimala Bharadwaj\\Desktop\\Data science\\AV\\JetRail"
+write_csv(test_op, file.path(dir, "sma1.csv"), col_names = TRUE)
+
+
+```
+
+
+
+```{r}
+x1 <- ts(train$Count, frequency=24*1)
+x2 <- ts(train$Count, frequency=24*7)
+x3 <- ts(train$Count, frequency=24*365)
+```
+
+
+
+
+```{r}
+
+SES_auto1 <- HoltWinters(x1,beta=FALSE,gamma=FALSE)
+SES_auto2 <- HoltWinters(x2,beta=FALSE,gamma=FALSE)
+SES_auto3 <- HoltWinters(x3,beta=FALSE,gamma=FALSE)
+
+```
+
+
+```{r}
+SES_auto1$SSE
+SES_auto2$SSE
+SES_auto3$SSE
+
+```
+
+```{r}
+
+
+f1 <- forecast(SES_auto1,h=nrow(test))
+#f1 <- predict(tslm_add2,n.ahead=nrow(test))
+
+```
+
+```{r}
+test_op <- data.frame(test$ID, f1$mean)
+
+colnames(test_op) <- c("ID","Count")
+```
+
+
+```{r}
+
+write_csv(test_op, file.path(dir, "SES1.csv"), col_names = TRUE)
+
+
+```
+
+
+
+```{r}
+
+DES_auto1 <- HoltWinters(x1,gamma=FALSE)
+DES_auto2 <- HoltWinters(x2,gamma=FALSE)
+DES_auto3 <- HoltWinters(x3,gamma=FALSE)
+
+```
+
+
+```{r}
+DES_auto1$SSE
+DES_auto2$SSE
+DES_auto3$SSE
+
+```
+
+```{r}
+
+
+f1 <- forecast(DES_auto1,h=nrow(test))
+#f1 <- predict(tslm_add2,n.ahead=nrow(test))
+
+```
+
+```{r}
+test_op <- data.frame(test$ID, f1$mean)
+
+colnames(test_op) <- c("ID","Count")
+```
+
+
+```{r}
+
+write_csv(test_op, file.path(dir, "DES1.csv"), col_names = TRUE)
+
+
+```
+
+
+
+```{r}
+
+TES_auto1 <- HoltWinters(x1)
+TES_auto2 <- HoltWinters(x2)
+TES_auto3 <- HoltWinters(x3)
+
+```
+
+
+```{r}
+TES_auto1$SSE
+TES_auto2$SSE
+TES_auto3$SSE
+
+```
+
+```{r}
+
+
+f1 <- predict(TES_auto1,n.ahead =nrow(test))
+f2 <- predict(TES_auto2,n.ahead =nrow(test))
+f3 <- predict(TES_auto3,n.ahead =nrow(test))
+
+
+```
+
+```{r}
+test_op1 <- data.frame(test$ID, f1)
+colnames(test_op1) <- c("ID","Count")
+
+test_op2 <- data.frame(test$ID, f2)
+colnames(test_op2) <- c("ID","Count")
+
+test_op3 <- data.frame(test$ID, f3)
+colnames(test_op3) <- c("ID","Count")
+
+
+
+```
+
+
+```{r}
+
+write_csv(test_op1, file.path(dir, "TES1.csv"), col_names = TRUE)
+write_csv(test_op2, file.path(dir, "TES2.csv"), col_names = TRUE)
+write_csv(test_op3, file.path(dir, "TES3.csv"), col_names = TRUE)
+
+```
+
+
+
+
+```{r}
+
+TES_auto4 <- HoltWinters(x1,seasonal = "multiplicative")
+TES_auto5 <- HoltWinters(x2,seasonal = "multiplicative")
+TES_auto6 <- HoltWinters(x3,seasonal = "multiplicative")
+
+```
+
+
+```{r}
+TES_auto4$SSE
+TES_auto5$SSE
+TES_auto6$SSE
+
+```
+
+```{r}
+
+
+f4 <- predict(TES_auto4,n.ahead =nrow(test))
+f5 <- predict(TES_auto5,n.ahead =nrow(test))
+f6 <- predict(TES_auto6,n.ahead =nrow(test))
+
+
+```
+
+```{r}
+test_op4 <- data.frame(test$ID, f4)
+colnames(test_op4) <- c("ID","Count")
+
+test_op5 <- data.frame(test$ID, f5)
+colnames(test_op5) <- c("ID","Count")
+
+test_op6 <- data.frame(test$ID, f6)
+colnames(test_op6) <- c("ID","Count")
+
+
+
+```
+
+
+```{r}
+
+write_csv(test_op4, file.path(dir, "TES4.csv"), col_names = TRUE)
+write_csv(test_op5, file.path(dir, "TES5.csv"), col_names = TRUE)
+write_csv(test_op6, file.path(dir, "TES6.csv"), col_names = TRUE)
+
+```
+
+
+
+
+```{r}
+
+CES_auto1 <- auto.ces(x1)
+CES_auto2 <- auto.ces(x2)
+CES_auto3 <- auto.ces(x3)
+
+```
+
+
+```{r}
+
+
+f1 <- forecast(CES_auto1,h=nrow(test))
+f2 <- forecast(CES_auto2,h=nrow(test))
+f3 <- forecast(CES_auto3,h=nrow(test))
+
+accuracy(f1)
+accuracy(f2)
+accuracy(f3)
+
+
+
+```
+
+```{r}
+test_op1 <- data.frame(test$ID, f1$mean)
+colnames(test_op1) <- c("ID","Count")
+
+test_op2 <- data.frame(test$ID, f2$mean)
+colnames(test_op2) <- c("ID","Count")
+
+test_op3 <- data.frame(test$ID, f3$mean)
+colnames(test_op3) <- c("ID","Count")
+
+
+
+```
+
+
+```{r}
+
+write_csv(test_op1, file.path(dir, "CES1.csv"), col_names = TRUE)
+write_csv(test_op2, file.path(dir, "CES2.csv"), col_names = TRUE)
+write_csv(test_op3, file.path(dir, "CES3.csv"), col_names = TRUE)
+
+```
+
+
+
+
+```{r}
+
+train_x <- train
+test_x <- test
+
+train_x$Datetime<-as.POSIXct(train$Datetime,"%d-%m-%Y %H:%M", tz="GMT")
+test_x$Datetime<-as.POSIXct(test$Datetime,"%d-%m-%Y %H:%M", tz="GMT")
+
+#Creating features
+
+train_x$year<-as.numeric(format(train_x$Datetime, "%Y"))
+test_x$year<-as.numeric(format(test_x$Datetime, "%Y"))
+
+
+train_x$month<-as.numeric(format(train_x$Datetime, "%m"))
+test_x$month<-as.numeric(format(test_x$Datetime, "%m"))
+
+
+train_x$day<-as.numeric(format(train_x$Datetime, "%d"))
+test_x$day<-as.numeric(format(test_x$Datetime, "%d"))
+
+
+train_x$weekday<-as.factor(weekdays(train_x$Datetime))
+test_x$weekday<-as.factor(weekdays(test_x$Datetime))
+
+train_x$hour<-as.numeric(format(train_x$Datetime, "%H"))
+test_x$hour<-as.numeric(format(test_x$Datetime, "%H"))
+
+
+
+```
+
+
+
+```{r}
+
+predictors<-c("ID", "Datetime", "year", "month", "day", "weekday.Friday", "weekday.Monday", "weekday.Saturday", 
+              "weekday.Sunday", "weekday.Thursday", "weekday.Tuesday", "weekday.Wednesday")
+
+
+dmy <- dummyVars(" ~ .", data = train_x, fullRank = F)
+x_train <- data.frame(predict(dmy, newdata = train_x))
+
+
+dmy <- dummyVars(" ~ .", data = test_x, fullRank = F)
+x_test <- data.frame(predict(dmy, newdata = test_x))
+
+
+dtrain <- xgb.DMatrix(data=as.matrix(x_train[,predictors]), label=train_x$Count)
+dtest <- xgb.DMatrix(data=as.matrix(x_test[,predictors]))
+
+
+```
+
+
+
+```{r}
+
+set.seed(101)
+library(xgboost)
+library(caret)
+
+fitcontrol <- trainControl(method="cv",number=5,savePredictions='final')
+
+
+model_xgb <- train(x_train[,predictors],
+                  x_train$Count,
+                  method = 'xgbTree',
+                  verbose = FALSE,
+                  trControl = fitcontrol)
+
+
+model_xgb
+
+
+ 
+
+
+
+```
+
+
+```{r}
+
+#prediction
+predict_model_xgb <- predict(model_xgb,x_test[,predictors])
+
+
+```
+
+```{r}
+test_op <- data.frame(test$ID, predict_model_xgb)
+
+colnames(test_op) <- c("ID","Count")
+```
+
+
+```{r}
+
+write_csv(test_op, file.path(dir, "xgb1.csv"), col_names = TRUE)
+
+
+```
