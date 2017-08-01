@@ -22,6 +22,8 @@ library(ggplot2)
 library(readr)
 library(xts)
 library(smooth)
+library(caret)
+library(xgboost)
 
 ```
 
@@ -573,12 +575,15 @@ write_csv(test_op3, file.path(dir, "CES3.csv"), col_names = TRUE)
 ```
 
 
-
+#xgb
 
 ```{r}
 
 train_x <- train
 test_x <- test
+
+
+train_x$Count <- log(train$Count) #log transformation
 
 train_x$Datetime<-as.POSIXct(train$Datetime,"%d-%m-%Y %H:%M", tz="GMT")
 test_x$Datetime<-as.POSIXct(test$Datetime,"%d-%m-%Y %H:%M", tz="GMT")
@@ -604,6 +609,12 @@ train_x$hour<-as.numeric(format(train_x$Datetime, "%H"))
 test_x$hour<-as.numeric(format(test_x$Datetime, "%H"))
 
 
+train_x$peak<-as.factor(ifelse(train_x$hour >= 2 & train_x$hour <=10,"np","p"))
+test_x$peak<-as.factor(ifelse(test_x$hour >= 2 & test_x$hour <=10,"np","p"))
+
+train_x$weekend<-as.factor(ifelse(weekdays(train_x$Datetime)=="Saturday" | weekdays(train_x$Datetime)=="Sunday","Y","N"))
+test_x$weekend<-as.factor(ifelse(weekdays(test_x$Datetime)=="Saturday" | weekdays(test_x$Datetime)=="Sunday","Y","N"))
+
 
 ```
 
@@ -611,8 +622,7 @@ test_x$hour<-as.numeric(format(test_x$Datetime, "%H"))
 
 ```{r}
 
-predictors<-c("ID", "Datetime", "year", "month", "day", "weekday.Friday", "weekday.Monday", "weekday.Saturday", 
-              "weekday.Sunday", "weekday.Thursday", "weekday.Tuesday", "weekday.Wednesday")
+predictors<-c("Datetime", "year", "month", "day", "weekday.Friday", "weekday.Monday", "weekday.Saturday", "weekday.Sunday", "weekday.Thursday", "weekday.Tuesday", "weekday.Wednesday", "peak.p", "peak.np","weekend.Y", "weekend.N" )
 
 
 dmy <- dummyVars(" ~ .", data = train_x, fullRank = F)
@@ -637,10 +647,12 @@ set.seed(101)
 library(xgboost)
 library(caret)
 
-fitcontrol <- trainControl(method="cv",number=5,savePredictions='final')
+fitcontrol <- trainControl(method="cv",number=10,savePredictions='final')
 
+importance_matrix <- xgb.importance(predictors,model=model_xgb$finalModel)
+predictors2<-importance_matrix$Feature[1:5]
 
-model_xgb <- train(x_train[,predictors],
+model_xgb <- train(x_train[,predictors2],
                   x_train$Count,
                   method = 'xgbTree',
                   verbose = FALSE,
@@ -656,17 +668,61 @@ model_xgb
 
 ```
 
+```{r}
+
+set.seed(101)
+library(xgboost)
+library(caret)
+
+fitcontrol <- trainControl(method="cv",number=10,savePredictions='final')
+
+
+model_xgb1 <- train(x_train[,predictors],
+                  x_train$Count,
+                  method = 'xgbLinear',
+                  verbose = FALSE,
+                  trControl = fitcontrol)
+
+
+model_xgb1
+
+```
+
+
 
 ```{r}
 
 #prediction
-predict_model_xgb <- predict(model_xgb,x_test[,predictors])
+predict_model_xgb <- predict(model_xgb,x_test[,predictors2])
 
 
 ```
 
 ```{r}
-test_op <- data.frame(test$ID, predict_model_xgb)
+#test_op <- data.frame(test$ID, predict_model_xgb)
+
+test_op <- data.frame(test$ID, exp(predict_model_xgb))  #reverse log transformation
+colnames(test_op) <- c("ID","Count")
+```
+
+
+```{r}
+
+write_csv(test_op, file.path(dir, "xgb3.csv"), col_names = TRUE)
+
+
+```
+
+```{r}
+
+#prediction
+predict_model_xgb1 <- predict(model_xgb1,x_test[,predictors])
+
+
+```
+
+```{r}
+test_op <- data.frame(test$ID, predict_model_xgb1)
 
 colnames(test_op) <- c("ID","Count")
 ```
@@ -674,7 +730,61 @@ colnames(test_op) <- c("ID","Count")
 
 ```{r}
 
-write_csv(test_op, file.path(dir, "xgb1.csv"), col_names = TRUE)
+write_csv(test_op, file.path(dir, "xgb2.csv"), col_names = TRUE)
 
 
 ```
+
+
+
+```{r}
+
+
+param <- list(
+  objective = "reg:linear",
+  eval_metric = "rmse",  
+  eta = 0.01,
+#  lambda = 2
+  max_depth = 2
+)
+
+
+
+set.seed(101)
+
+xgb_nsales <- xgb.train(
+  params = param, 
+  data = dtrain, 
+  nrounds = 5000, 
+  #  watchlist = watchlist,
+  maximize = T
+  #  early_stopping_rounds = 20
+)
+
+```
+
+
+```{r}
+
+#prediction
+predict_model_xgb2 <- predict(xgb_nsales,newdata=dtest)
+
+
+```
+
+```{r}
+test_op <- data.frame(test$ID, predict_model_xgb2)
+
+colnames(test_op) <- c("ID","Count")
+```
+
+
+```{r}
+
+write_csv(test_op, file.path(dir, "xgb2.csv"), col_names = TRUE)
+
+
+```
+
+
+
