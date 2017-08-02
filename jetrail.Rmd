@@ -22,6 +22,7 @@ library(ggplot2)
 library(readr)
 library(xts)
 library(smooth)
+library(caret)
 
 ```
 
@@ -851,13 +852,13 @@ write_csv(test_op, file.path(dir, "arima2.csv"), col_names = TRUE)
 
 ```{r}
 
-x4<- ts(log(train$Count), frequency=24*1)
-x5<- ts(log(train$Count), frequency=24*7)
-x6<- ts(log(train$Count), frequency=24*365)
+#x4<- ts(log(train$Count), frequency=24*1)
+#x5<- ts(log(train$Count), frequency=24*7)
+#x6<- ts(log(train$Count), frequency=24*365)
 
 
 #model_ets0 <- ets(x)
-model_ets1 <- es(x4)
+model_ets1 <- es(ts(c(train$Count,rep(500,nrow(test))),frequency=24),h=nrow(test),holdout = TRUE,xreg = xreg_tot,updateX=TRUE)
 #model_ets2 <- ets(x2)
 #model_ets3 <- ets(x3)
 
@@ -874,7 +875,7 @@ f1 <- forecast(model_ets1,h=nrow(test))
 ```
 
 ```{r}
-test_op <- data.frame(test$ID, exp(f1$mean))
+test_op <- data.frame(test$ID, model_ets1$forecast)
 
 colnames(test_op) <- c("ID","Count")
 ```
@@ -929,9 +930,9 @@ train_x$weekend<-as.factor(ifelse(weekdays(train_x$Datetime)=="Saturday" | weekd
 test_x$weekend<-as.factor(ifelse(weekdays(test_x$Datetime)=="Saturday" | weekdays(test_x$Datetime)=="Sunday","Y","N"))
 
 
-predictors<-c("year", "month", "day", "weekday.Friday", "weekday.Monday", "weekday.Saturday", "weekday.Sunday", "weekday.Thursday", "weekday.Tuesday", "weekday.Wednesday", "peak.p", "peak.np","weekend.Y", "weekend.N" )
+#predictors<-c("year", "month", "day", "weekday.Friday", "weekday.Monday", "weekday.Saturday", "weekday.Sunday", "weekday.Thursday", "weekday.Tuesday", "weekday.Wednesday", "peak.p", "peak.np","weekend.Y", "weekend.N" )
 
-#predictors<-c("Datetime", "year", "month", "day", "peak.p", "peak.np","weekend.Y", "weekend.N" )
+predictors<-c("day","peak.p", "peak.np")
 
 dmy <- dummyVars(" ~ .", data = train_x, fullRank = F)
 x_train <- data.frame(predict(dmy, newdata = train_x))
@@ -945,12 +946,15 @@ xreg_train <- as.matrix(x_train[,predictors])
 xreg_test <- as.matrix(x_test[,predictors])
 
 
+xreg_tot <- rbind(xreg_train,xreg_test)
+
+x1_all <- ts(c(train$Count,rep(0,nrow(test))), frequency=24*1)
 
 ```
 
 
 ```{r}
-CES_auto1x <- auto.ces(x1,xreg=xreg_train,holdout=TRUE,h=nrow(test),updateX=TRUE,intervals = TRUE)
+CES_auto1x <- auto.ces(x1_all,xreg=xreg_tot,holdout=TRUE,h=nrow(test),updateX=TRUE)
 #CES_auto2x <- auto.ces(x2,xreg=xreg_train,xregDo = "select")
 #CES_auto3x <- auto.ces(x3,xreg=xreg_train,xregDo = "select")
 
@@ -982,9 +986,11 @@ colnames(test_op2) <- c("ID","Count")
 test_op3 <- data.frame(test$ID, f3$mean)
 colnames(test_op3) <- c("ID","Count")
 
-
-
 ```
+
+
+
+
 
 
 ```{r}
@@ -996,6 +1002,37 @@ write_csv(test_op3, file.path(dir, "CES3x.csv"), col_names = TRUE)
 ```
 
 
+```{r}
+
+#SMA
+
+train_x <- train
+test_x <- test
+
+
+train_x$Datetime<-as.POSIXct(train$Datetime,"%d-%m-%Y %H:%M", tz="GMT")
+test_x$Datetime<-as.POSIXct(test$Datetime,"%d-%m-%Y %H:%M", tz="GMT")
+
+#Creating features
+
+train_x$hour<-as.numeric(format(train_x$Datetime, "%H"))
+test_x$hour<-as.numeric(format(test_x$Datetime, "%H"))
+
+for(i in 0:23)
+{
+  temp_train <- train_x %>% filter(hour==i)
+  temp_test <- test_x %>% filter(hour==i)
+  SMA_i <- sma(ts(temp_train$Count, frequency =365, start=c(2012,8,25)), h=nrow(temp_test), silent="graph")
+  test_op <- data.frame(ID=temp_test$ID,Count=SMA_i$forecast)
+  colnames(test_op) <- c("ID","Count")
+  write_csv(test_op, file.path(dir, "sma.csv"), col_names=ifelse(i %in% 0, TRUE, FALSE), append=TRUE)
+  print(i)
+  
+  
+}
+
+
+```
 
 
 
