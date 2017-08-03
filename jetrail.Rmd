@@ -634,6 +634,8 @@ test_x$hour<-as.numeric(format(test_x$Datetime, "%H"))
 train_x$peak<-as.factor(ifelse(train_x$hour >= 2 & train_x$hour <=10,"np","p"))
 test_x$peak<-as.factor(ifelse(test_x$hour >= 2 & test_x$hour <=10,"np","p"))
 
+
+
 #train_x$weekend<-as.factor(ifelse(weekdays(train_x$Datetime)=="Saturday" | weekdays(train_x$Datetime)=="Sunday","Y","N"))
 #test_x$weekend<-as.factor(ifelse(weekdays(test_x$Datetime)=="Saturday" | weekdays(test_x$Datetime)=="Sunday","Y","N"))
 
@@ -652,8 +654,8 @@ dmy <- dummyVars(" ~ .", data = test_x, fullRank = F)
 x_test <- data.frame(predict(dmy, newdata = test_x))
 
 
-#dtrain <- xgb.DMatrix(data=as.matrix(x_train[,predictors]), label=train_x$Count)
-#dtest <- xgb.DMatrix(data=as.matrix(x_test[,predictors]))
+dtrain <- xgb.DMatrix(data=as.matrix(x_train[,predictors]), label=train_x$Count)
+dtest <- xgb.DMatrix(data=as.matrix(x_test[,predictors]))
 
 #creating model
 
@@ -697,6 +699,62 @@ for(i in 0:23)
   print(i)
   
 }
+
+
+for(i in 0:23)
+{
+  temp_train <- x_train %>% filter(hour==i)
+  temp_test <- x_test %>% filter(hour==i)
+  
+  
+  dtrain <- xgb.DMatrix(data=as.matrix(temp_train[,predictors]), label=temp_train$Count)
+  dtest <- xgb.DMatrix(data=as.matrix(temp_test[,predictors]))
+  
+  param <- list(
+  objective = "reg:linear",
+  eval_metric = "rmse",  
+  eta = runif(1, .01, .3),
+  gamma = runif(1, 0.0, 0.2),
+  subsample = runif(1, .6, .9),
+  colsample_bytree = runif(1, .5, .8),
+#  lambda = 2
+  max_depth = sample(2:10, 1),
+  min_child_weight = sample(1:40, 1),
+  max_delta_step = sample(1:10, 1)
+  )
+
+  set.seed(101)
+  
+  cv_count <- xgb.cv(
+  params = param, 
+  data = dtrain, 
+  nrounds = 500, 
+  #  watchlist = watchlist,
+  nfold = 10,  
+  maximize = F,
+  verbose = F
+  #early_stopping_rounds = 20
+  #print_every_n = 50
+  )
+
+
+
+  xgb_count <- xgb.train(
+  params = param, 
+  data = dtrain, 
+  nrounds = 500, 
+  #  watchlist = watchlist,
+  maximize = T
+  #  early_stopping_rounds = 20
+  )
+  
+  test_op <- data.frame(ID=temp_test$ID,Count=exp(predict(object=xgb_count, newdata=dtest)))
+  colnames(test_op) <- c("ID","Count")
+  write_csv(test_op, file.path(dir, "xgbiM.csv"), col_names=ifelse(i %in% 0, TRUE, FALSE), append=TRUE)
+  print(i)
+
+}
+
 
 
 
@@ -1261,4 +1319,3 @@ for(i in 0:23)
 
 
 ```
-
