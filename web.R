@@ -10,8 +10,8 @@ library(data.table)
 library(foreach)
 library(doParallel) 
 
-dir <- "D:\\Users\\bharadwaj\\Desktop\\DS\\Datasets\\Kaggle\\Web Traffic"
-#dir <- "C:\\Users\\Srimala Bharadwaj\\Desktop\\Data science\\Kaggle\\Web Traffic"
+#dir <- "D:\\Users\\bharadwaj\\Desktop\\DS\\Datasets\\Kaggle\\Web Traffic"
+dir <- "C:\\Users\\Srimala Bharadwaj\\Desktop\\Data science\\Kaggle\\Web Traffic"
 
 train_1 <- fread("train_1.csv")
 
@@ -25,10 +25,10 @@ train.date.cols = names(train_1[,-1])
 
 # reshape the training data into long format page, date and views
 dt <- melt(train_1,
-          d.vars = c("Page"),
-          measure.vars = train.date.cols,
-          variable.name = "ds",
-          value.name = "y")
+           d.vars = c("Page"),
+           measure.vars = train.date.cols,
+           variable.name = "ds",
+           value.name = "y")
 #######################################################################################################################################
 # replace NAs with 0 and calculate page median
 dt[is.na(y), y :=0]
@@ -215,7 +215,61 @@ colnames(test_op) <- c("Id","Visits")
 write_csv(test_op, file.path(dir, "smadly.csv"), col_names=ifelse(i %in% 1, TRUE, FALSE), append=TRUE)
 cat(2,";")
 
+#######################################################################################################################################
+func_out_mean <- function(x, na.rm = TRUE, ...) {
+  qnt <- quantile(x, probs=c(.25, .75), na.rm = na.rm, ...)
+  H <- 1.5 * IQR(x, na.rm = na.rm)
+  y <- x
+  y[x < (qnt[1] - H)] <- NA
+  y[x > (qnt[2] + H)] <- NA
+  mean(y,na.rm=TRUE)
+}
 
 
+dt1 <- dt
+dt1[, dow:= as.numeric(format(as.Date(ds),"%w"))]
+
+
+# calculate page mean removing outliers
+dt_sum1 <- dt1[,.(Visits = func_out_mean(y[(length(y)-59):length(y)])) , by = c("Page","dow")]
+setkey(dt_sum1, Page, dow) #dt_sum1 data.table is sorted by Page. Accesses "by reference" and is memory efficient
+
+key_1_new <- fread("key_1.csv")
+#merge projection dates and key to create submission
+key_1_new[, Page2:= substr(Page, 1, nchar(Page)-11)]
+key_1_new[, dow:= as.numeric(format(as.Date(substr(Page, nchar(Page)-9, nchar(Page))),"%w"))]
+key_1_new[, Page:= NULL]
+setnames(key_1_new, "Page2", "Page") #rename Page2 to Page
+setkey(key_1_new, Page, dow)  
+
+
+
+sub <- merge(key_1_new, dt_sum1, all.x = TRUE) #merge based on shared key columns in key_1 and dt_sum
+
+#write output
+fwrite(sub[,c('Id', 'Visits')],file="mean_out_2m_dow.csv")
+
+#######################################################################################################################################
+
+func_out_median <- function(x, na.rm = TRUE, ...) {
+  qnt <- quantile(x, probs=c(.25, .75), na.rm = na.rm, ...)
+  H <- 1.5 * IQR(x, na.rm = na.rm)
+  y <- x
+  y[x < (qnt[1] - H)] <- NA
+  y[x > (qnt[2] + H)] <- NA
+  median(y,na.rm=TRUE)
+}
+
+
+# calculate page mean removing outliers
+dt_sum1 <- dt1[,.(Visits = func_out_median(y[(length(y)-59):length(y)])) , by = c("Page","dow")]
+setkey(dt_sum1, Page, dow) #dt_sum1 data.table is sorted by Page. Accesses "by reference" and is memory efficient
+
+
+sub <- merge(key_1_new, dt_sum1, all.x = TRUE) #merge based on shared key columns in key_1 and dt_sum
+
+#write output
+fwrite(sub[,c('Id', 'Visits')],file="median_out_2m_dow.csv")
+#######################################################################################################################################
 
 
