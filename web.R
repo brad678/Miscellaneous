@@ -341,4 +341,148 @@ print(Sys.time()-strt)
 #########################################################################################################################################
 
 
+med_2m <- fread("median_2m.csv")
+med_7w <- fread("median_7w.csv")
+
+med_2m_7w <- med_2m
+med_2m_7w$Visits1 <- med_7w$Visits
+
+med_2m_7w$Visits2 <- ifelse(med_2m_7w$Visits>=med_2m_7w$Visits1, med_2m_7w$Visits, med_2m_7w$Visits1)
+med_2m_7w[, Visits1:= NULL]
+med_2m_7w[, Visits:= NULL]
+setnames(med_2m_7w, "Visits2", "Visits")
+
+fwrite(med_2m_7w,file="median_2m_7w_max.csv")
+#########################################################################################################################################
+med_2m_7w <- med_2m
+med_2m_7w$Visits1 <- med_7w$Visits
+
+med_2m_7w$Visits2 <- ifelse(med_2m_7w$Visits<=med_2m_7w$Visits1, med_2m_7w$Visits, med_2m_7w$Visits1)
+med_2m_7w[, Visits1:= NULL]
+med_2m_7w[, Visits:= NULL]
+setnames(med_2m_7w, "Visits2", "Visits")
+
+fwrite(med_2m_7w,file="median_2m_7w_min.csv")
+#########################################################################################################################################
+#train_1[is.na(train_1)] <- 0
+train_1 <- fread("train_1.csv")
+#sma_model <- fread("sma_model.csv")
+
+idx <- 1
+
+x <- vector("numeric",length=550)
+s1 <- vector("numeric",length=2)
+test_op <- data.table(Id   = character(60), Visits = numeric(60))
+
+
+strt <- Sys.time()
+
+for(i in 1:nrow(train_1))
+{
+  x <- tsclean(as.data.table(t(train_1[1,2:551]))$V1)
+  #x <- ts(x, frequency=365,start=c(2015,182))
+  p <- periodogram(x,plot = FALSE)
+  s1 <- as.vector((1/p$freq)[order(-p$spec)[1:2]])
+  test_op <- data.table(Id=sma_model$Id[idx:(idx+59)],Visits=forecast(tbats(x,seasonal.periods = c(s1[1],s1[2]),use.parallel = TRUE,num.cores=2),60)$mean)
+  idx <- idx+60
+  fwrite(test_op,file="tbats_model.csv",append=TRUE)
+  if(i %% 500 == 0)
+  {
+    print(i)
+  }
+  
+}
+print(Sys.time()-strt)
+
+
+
+
+#########################################################################################################################################
+
+
+
+idx <- 1
+
+x <- vector("numeric",length=550)
+s1 <- vector("numeric",length=2)
+test_op <- data.table(Id   = character(60), Visits = numeric(60))
+
+strt <- Sys.time()
+
+for(i in 1:nrow(train_1))
+{
+  x <- t(train_1[i,2:551])[,1]
+  x[is.na(x)] <- 0
+  #x <- tsclean(t(train_1[i,2:551])[,1])
+  p <- periodogram(x,plot = FALSE)
+  s1 <- (1/p$freq)[order(-p$spec)[1:2]]
+  test_op[, Id:= sma_model$Id[idx:(idx+59)]]
+  test_op[, Visits:=forecast(tbats(x,seasonal.periods = c(s1[1],s1[2])),60)$mean]
+  idx <- idx+60
+  fwrite(test_op,file="tbats_model.csv",append=TRUE)
+  if(i %% 500 == 0)
+  {
+    print(i)
+  }
+  
+  
+  
+}
+print(Sys.time()-strt)
+
+
+
+
+library(TSA)
+library(doParallel)
+library(itertools)
+
+#idx <- 1
+
+x <- vector("numeric",length=550)
+s1 <- vector("numeric",length=2)
+test_op <- data.table(Id   = character(60), Visits = numeric(60))
+
+num_of_cores <- detectCores()
+cl <- makePSOCKcluster(num_of_cores)
+registerDoParallel(cl)
+
+strt <- Sys.time()
+
+r <- foreach(d=isplitRows(train_2, chunks=num_of_cores),
+             .combine = cbind, .packages=c("forecast","TSA","data.table")) %dopar% {
+               #result <- logisticRidge(admit~ gre + gpa + rank, data = d)
+               #coefficients(result)
+               for(i in 1:nrow(d))
+               {
+                 x <- t(d[i,2:551])[,1]
+                 x[is.na(x)] <- 0
+                 p <- periodogram(x,plot = FALSE)
+                 s1 <- (1/p$freq)[order(-p$spec)[1:2]]
+                 idx <- which(d$Page[i]==key_1$Page)[1]
+                 test_op[, Id:= key_1$Id[idx:(idx+59)]]
+                 #test_op[, Id:= sma_model$Id[idx:(idx+59)]]
+                 test_op[, Visits:=forecast(tbats(x,seasonal.periods = c(s1[1],s1[2])),60)$mean]
+                 #idx <- idx+60
+                 #test_op
+                 fwrite(test_op,file="tbats_model.csv",append=TRUE)
+                    
+               }
+               
+               
+             }
+
+print(Sys.time()-strt)
+#stop cluster
+stopCluster(cl)
+
+
+
+
+
+
+
+
+
+
 
