@@ -687,3 +687,114 @@ setnames(sub1, ".Visits", "Visits")
 #write output
 fwrite(sub[,c('Id', 'Visits')],file="mean_windows2.csv")
 
+
+
+
+
+
+####$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$################
+
+
+train_2 <- fread("train_2.csv")
+
+key_2 <- fread("key_2.csv")
+#merge projection dates and key to create submission
+key_2[, Page2:= substr(Page, 1, nchar(Page)-11)]
+key_2[, Page:= NULL]
+setnames(key_2, "Page2", "Page") #rename Page2 to Page
+setkey(key_2, Page)  
+
+
+# extract a lists  of pages and dates
+train.date.cols2 = names(train_2[,-1])
+
+
+dt2 <- melt(train_2,
+            d.vars = c("Page"),
+            measure.vars = train.date.cols2,
+            variable.name = "ds",
+            value.name = "y")
+
+
+s1 <- c(11, 18, 30, 48, 78, 126, 203, 329)
+
+
+dt_sum1 <- dt2[,.(Visits = median(y[(length(y)-s1[1]):length(y)],na.rm=TRUE)) , by = Page]
+setkey(dt_sum1, Page) #dt_sum1 data.table is sorted by Page. Accesses "by reference" and is memory efficient
+
+dt_sum2 <- dt2[,.(Visits = median(y[(length(y)-s1[2]):length(y)],na.rm=TRUE)) , by = Page]
+setkey(dt_sum2, Page) #dt_sum1 data.table is sorted by Page. Accesses "by reference" and is memory efficient
+
+dt_sum3 <- dt2[,.(Visits = median(y[(length(y)-s1[3]):length(y)],na.rm=TRUE)) , by = Page]
+setkey(dt_sum3, Page) #dt_sum1 data.table is sorted by Page. Accesses "by reference" and is memory efficient
+
+dt_sum4 <- dt2[,.(Visits = median(y[(length(y)-s1[4]):length(y)],na.rm=TRUE)) , by = Page]
+setkey(dt_sum4, Page) #dt_sum1 data.table is sorted by Page. Accesses "by reference" and is memory efficient
+
+dt_sum5 <- dt2[,.(Visits = median(y[(length(y)-s1[5]):length(y)],na.rm=TRUE)) , by = Page]
+setkey(dt_sum5, Page) #dt_sum1 data.table is sorted by Page. Accesses "by reference" and is memory efficient
+
+dt_sum6 <- dt2[,.(Visits = median(y[(length(y)-s1[6]):length(y)],na.rm=TRUE)) , by = Page]
+setkey(dt_sum6, Page) #dt_sum1 data.table is sorted by Page. Accesses "by reference" and is memory efficient
+
+dt_sum7 <- dt2[,.(Visits = median(y[(length(y)-s1[7]):length(y)],na.rm=TRUE)) , by = Page]
+setkey(dt_sum7, Page) #dt_sum1 data.table is sorted by Page. Accesses "by reference" and is memory efficient
+
+dt_sum8 <- dt2[,.(Visits = median(y[(length(y)-s1[8]):length(y)],na.rm=TRUE)) , by = Page]
+setkey(dt_sum8, Page) #dt_sum1 data.table is sorted by Page. Accesses "by reference" and is memory efficient
+
+dt_sum <- rbind(dt_sum1,dt_sum2,dt_sum3,dt_sum4,dt_sum5,dt_sum6,dt_sum7,dt_sum8)
+dt_sum <- dt_sum[,.(Visits = median(Visits[(length(Visits)-7):length(Visits)])) , by = Page]
+setkey(dt_sum, Page) #dt_sum1 data.table is sorted by Page. Accesses "by reference" and is memory efficient
+
+sub <- merge(key_2, dt_sum, all.x = TRUE) #merge based on shared key columns in key_2 and dt_sum
+
+sub[is.na(Visits), Visits :=0]
+
+#write output
+fwrite(sub[,c('Id', 'Visits')],file="median_windows5_2.csv")
+
+sub1 <- sub
+sub1[,.Visits :=floor(Visits)]
+sub1[, Visits:= NULL]
+setnames(sub1, ".Visits", "Visits") 
+#write output
+fwrite(sub[,c('Id', 'Visits')],file="median_windows6_2.csv")
+
+
+s1 <- c(11, 18, 30, 48, 78, 126, 203, 329, 532)
+
+dt_sum9 <- dt2[,.(Visits = median(y[(length(y)-s1[9]):length(y)],na.rm=TRUE)) , by = Page]
+setkey(dt_sum9, Page) #dt_sum1 data.table is sorted by Page. Accesses "by reference" and is memory efficient
+
+dt_sum <- rbind(dt_sum1,dt_sum2,dt_sum3,dt_sum4,dt_sum5,dt_sum6,dt_sum7,dt_sum8,dt_sum9)
+dt_sum <- dt_sum[,.(Visits = median(Visits[(length(Visits)-8):length(Visits)])) , by = Page]
+setkey(dt_sum, Page) #dt_sum1 data.table is sorted by Page. Accesses "by reference" and is memory efficient
+
+sub <- merge(key_2, dt_sum, all.x = TRUE) #merge based on shared key columns in key_2 and dt_sum
+
+sub[is.na(Visits), Visits :=0]
+
+
+sub1 <- sub
+sub1[,.Visits :=floor(Visits)]
+sub1[, Visits:= NULL]
+setnames(sub1, ".Visits", "Visits") 
+#write output
+fwrite(sub[,c('Id', 'Visits')],file="median_windows7_2.csv")
+
+
+
+dt_sumx <- dt2[,.(Visits = median(y[(length(y)-59):length(y)],na.rm = TRUE)) , by = Page]
+setkey(dt_sumx, Page) #dt_sum1 data.table is sorted by Page. Accesses "by reference" and is memory efficient
+
+
+sub <- merge(key_2, dt_sumx, all.x = TRUE) #merge based on shared key columns in key_1 and dt_sum
+sub[is.na(Visits), Visits :=0]
+
+#write output
+fwrite(sub[,c('Id', 'Visits')],file="median_2m_2.csv")
+
+
+
+
