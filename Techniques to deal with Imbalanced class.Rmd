@@ -217,28 +217,30 @@ mean(ROSE.BOOT$acc)
 
 library(DMwR)
 
-SMOTE_balanced <- SMOTE(cls ~ ., data = hacide.train)
+data.smote <- SMOTE(cls ~ ., data = hacide.train, perc.over = 2000, perc.under = 105)
 
-table(SMOTE_balanced$cls)
+table(data.smote$cls)
 
 ```
 
 
+#### build decision tree models and make predictions on unseen data
+
+```{r}
+tree.smote <- rpart(cls ~ ., data = data.smote)
+pred.tree.smote <- predict(tree.smote, newdata = hacide.test)
+
+```
 
 
+#### evaluating the model using roc curve
+
+```{r}
+#AUC smote
+roc.curve(hacide.test$cls, pred.tree.smote[,2])
 
 
-
-
-
-
-
-
-
-
-
-
-
+```
 
 
 
